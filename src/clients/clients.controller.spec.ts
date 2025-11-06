@@ -1,0 +1,277 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
+import { ClientsController } from './clients.controller';
+import { ClientsService } from './clients.service';
+import { CsvProcessorService } from './csv-processor.service';
+import { Client } from '@prisma/client';
+
+describe('ClientsController', () => {
+  let controller: ClientsController;
+  let clientsService: jest.Mocked<ClientsService>;
+  let csvProcessorService: jest.Mocked<CsvProcessorService>;
+
+  const mockClientsService = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    createManyClients: jest.fn(),
+    getUniqueValues: jest.fn(),
+    deleteAll: jest.fn(),
+  };
+
+  const mockCsvProcessorService = {
+    parseCsvContent: jest.fn(),
+  };
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [ClientsController],
+      providers: [
+        {
+          provide: ClientsService,
+          useValue: mockClientsService,
+        },
+        {
+          provide: CsvProcessorService,
+          useValue: mockCsvProcessorService,
+        },
+      ],
+    }).compile();
+
+    controller = module.get<ClientsController>(ClientsController);
+    clientsService = module.get(ClientsService);
+    csvProcessorService = module.get(CsvProcessorService);
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('uploadCsv', () => {
+    it('should upload and process CSV file successfully', async () => {
+      // Arrange
+      const mockFile: Express.Multer.File = {
+        fieldname: 'file',
+        originalname: 'clients.csv',
+        encoding: '7bit',
+        mimetype: 'text/csv',
+        buffer: Buffer.from('name,email,phone\nClient 1,client1@test.com,1234567890'),
+        size: 100,
+        destination: '',
+        filename: '',
+        path: '',
+        stream: null as any,
+      };
+
+      const mockClients = [
+        {
+          name: 'Client 1',
+          email: 'client1@test.com',
+          phone: '1234567890',
+          assignedSeller: 'Seller 1',
+          meetingDate: '2024-01-01',
+          closed: false,
+          transcription: '',
+        },
+      ];
+
+      mockCsvProcessorService.parseCsvContent.mockReturnValue(mockClients);
+      mockClientsService.createManyClients.mockResolvedValue({ count: 1 });
+
+      // Act
+      const result = await controller.uploadCsv(mockFile);
+
+      // Assert
+      expect(result).toEqual({
+        message: 'CSV uploaded and processed successfully',
+        clientsCreated: 1,
+      });
+      expect(csvProcessorService.parseCsvContent).toHaveBeenCalledWith(mockFile.buffer.toString('utf-8'));
+      expect(clientsService.createManyClients).toHaveBeenCalledWith(mockClients);
+    });
+
+    it('should throw BadRequestException when no file is uploaded', async () => {
+      // Arrange
+      const mockFile = undefined;
+
+      // Act & Assert
+      await expect(controller.uploadCsv(mockFile)).rejects.toThrow(BadRequestException);
+      await expect(controller.uploadCsv(mockFile)).rejects.toThrow('No file uploaded');
+      expect(csvProcessorService.parseCsvContent).not.toHaveBeenCalled();
+      expect(clientsService.createManyClients).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when file is not CSV', async () => {
+      // Arrange
+      const mockFile: Express.Multer.File = {
+        fieldname: 'file',
+        originalname: 'clients.txt',
+        encoding: '7bit',
+        mimetype: 'text/plain',
+        buffer: Buffer.from('test content'),
+        size: 100,
+        destination: '',
+        filename: '',
+        path: '',
+        stream: null as any,
+      };
+
+      // Act & Assert
+      await expect(controller.uploadCsv(mockFile)).rejects.toThrow(BadRequestException);
+      await expect(controller.uploadCsv(mockFile)).rejects.toThrow('Only CSV files are allowed');
+      expect(csvProcessorService.parseCsvContent).not.toHaveBeenCalled();
+      expect(clientsService.createManyClients).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getUniqueValues', () => {
+    it('should return unique values successfully', async () => {
+      // Arrange
+      const mockUniqueValues = {
+        sellers: ['Seller 1', 'Seller 2'],
+        industries: ['Technology', 'Finance'],
+        sentiments: ['positive', 'neutral'],
+        urgencyLevels: ['immediate', 'planned'],
+      };
+
+      mockClientsService.getUniqueValues.mockResolvedValue(mockUniqueValues);
+
+      // Act
+      const result = await controller.getUniqueValues();
+
+      // Assert
+      expect(result).toEqual(mockUniqueValues);
+      expect(clientsService.getUniqueValues).toHaveBeenCalledTimes(1);
+      expect(clientsService.getUniqueValues).toHaveBeenCalledWith();
+    });
+  });
+
+  describe('findAll', () => {
+    it('should return all clients with default filters', async () => {
+      // Arrange
+      const mockClients: Client[] = [
+        {
+          id: '1',
+          name: 'Client 1',
+          email: 'client1@test.com',
+          phone: '1234567890',
+          assignedSeller: 'Seller 1',
+          meetingDate: new Date('2024-01-01'),
+          closed: false,
+          transcription: 'Test transcription',
+          industry: null,
+          operationSize: null,
+          interactionVolume: null,
+          discoverySource: null,
+          mainMotivation: null,
+          urgencyLevel: null,
+          painPoints: [],
+          technicalRequirements: [],
+          sentiment: null,
+          processed: false,
+          processedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+
+      const mockResponse = {
+        clients: mockClients,
+        total: 1,
+        page: 1,
+        limit: 20,
+      };
+
+      mockClientsService.findAll.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await controller.findAll({});
+
+      // Assert
+      expect(result).toEqual(mockResponse);
+      expect(clientsService.findAll).toHaveBeenCalledTimes(1);
+      expect(clientsService.findAll).toHaveBeenCalledWith({});
+    });
+
+    it('should return clients with filters applied', async () => {
+      // Arrange
+      const filters = {
+        seller: 'Seller 1',
+        industry: 'Technology',
+        closed: true,
+        page: 1,
+        limit: 10,
+      };
+
+      const mockResponse = {
+        clients: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+      };
+
+      mockClientsService.findAll.mockResolvedValue(mockResponse);
+
+      // Act
+      const result = await controller.findAll(filters);
+
+      // Assert
+      expect(result).toEqual(mockResponse);
+      expect(clientsService.findAll).toHaveBeenCalledWith(filters);
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return a single client by ID', async () => {
+      // Arrange
+      const mockClient: Client = {
+        id: 'client-1',
+        name: 'Client 1',
+        email: 'client1@test.com',
+        phone: '1234567890',
+        assignedSeller: 'Seller 1',
+        meetingDate: new Date('2024-01-01'),
+        closed: false,
+        transcription: 'Test transcription',
+        industry: 'Technology',
+        operationSize: 'large',
+        interactionVolume: 150,
+        discoverySource: 'Website',
+        mainMotivation: 'Efficiency',
+        urgencyLevel: 'immediate',
+        painPoints: ['High workload'],
+        technicalRequirements: ['API integration'],
+        sentiment: 'positive',
+        processed: true,
+        processedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      mockClientsService.findOne.mockResolvedValue(mockClient);
+
+      // Act
+      const result = await controller.findOne('client-1');
+
+      // Assert
+      expect(result).toEqual(mockClient);
+      expect(clientsService.findOne).toHaveBeenCalledWith('client-1');
+    });
+  });
+
+  describe('deleteAll', () => {
+    it('should delete all clients successfully', async () => {
+      // Arrange
+      const mockResult = { count: 10 };
+      mockClientsService.deleteAll.mockResolvedValue(mockResult);
+
+      // Act
+      const result = await controller.deleteAll();
+
+      // Assert
+      expect(result).toEqual(mockResult);
+      expect(clientsService.deleteAll).toHaveBeenCalledTimes(1);
+      expect(clientsService.deleteAll).toHaveBeenCalledWith();
+    });
+  });
+});
+
