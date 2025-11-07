@@ -89,8 +89,30 @@ export class ClientsController {
   }
 
   @Delete()
-  @ApiOperation({ summary: 'Delete all clients' })
-  @ApiResponse({ status: 200, description: 'All clients deleted successfully' })
+  @ApiOperation({
+    summary: 'Delete all clients and clear related tables',
+    description:
+      'Deletes all clients and clears related tables (processing_batches, analysis_logs). This empties all tables but keeps the table structure intact. Use with caution - this deletes ALL data.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All tables cleared successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        clients: { type: 'number', description: 'Number of clients deleted' },
+        processingBatches: {
+          type: 'number',
+          description: 'Number of processing batches deleted',
+        },
+        analysisLogs: {
+          type: 'number',
+          description: 'Number of analysis logs deleted',
+        },
+        total: { type: 'number', description: 'Total records deleted' },
+      },
+    },
+  })
   async deleteAll() {
     return this.clientsService.deleteAll();
   }

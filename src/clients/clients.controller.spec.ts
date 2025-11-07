@@ -263,8 +263,13 @@ describe('ClientsController', () => {
   });
 
   describe('deleteAll', () => {
-    it('should delete all clients successfully', async () => {
-      const mockResult = { count: 10 };
+    it('should clear all tables successfully', async () => {
+      const mockResult = {
+        clients: 100,
+        processingBatches: 5,
+        analysisLogs: 10,
+        total: 115,
+      };
       mockClientsService.deleteAll.mockResolvedValue(mockResult);
 
       const result = await controller.deleteAll();
@@ -272,6 +277,21 @@ describe('ClientsController', () => {
       expect(result).toEqual(mockResult);
       expect(clientsService.deleteAll).toHaveBeenCalledTimes(1);
       expect(clientsService.deleteAll).toHaveBeenCalledWith();
+    });
+
+    it('should return zeros when all tables are empty', async () => {
+      const mockResult = {
+        clients: 0,
+        processingBatches: 0,
+        analysisLogs: 0,
+        total: 0,
+      };
+      mockClientsService.deleteAll.mockResolvedValue(mockResult);
+
+      const result = await controller.deleteAll();
+
+      expect(result).toEqual(mockResult);
+      expect(clientsService.deleteAll).toHaveBeenCalledTimes(1);
     });
   });
 });
