@@ -13,7 +13,7 @@ AI-powered sales analytics platform backend built with NestJS, TypeScript, Postg
 ## Prerequisites
 
 - Node.js 18+ 
-- PostgreSQL 14+
+- Docker and Docker Compose
 - npm or yarn
 
 ## Installation
@@ -28,30 +28,62 @@ Create a `.env` file in the backend directory:
 
 ```env
 # Database
-DATABASE_URL="postgresql://user:password@localhost:5432/vambe_db"
+DATABASE_URL="postgresql://vambe:vambe_password@localhost:5432/vambe_db?schema=public"
 
-# Anthropic API
-ANTHROPIC_API_KEY="your-api-key-here"
+# Anthropic Claude API
+ANTHROPIC_API_KEY="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"
 
-# Server
+# Application
 PORT=3001
+NODE_ENV=development
+
+# CORS
 FRONTEND_URL="http://localhost:3000"
 ```
 
-## Database Setup
+## First Time Setup
+
+### 1. Start PostgreSQL Database with Docker
+
+```bash
+# Start PostgreSQL container in detached mode
+docker compose up -d
+
+# Verify the container is running
+docker ps
+```
+
+The database will be available at `localhost:5432` with:
+- User: `vambe`
+- Password: `vambe_password`
+- Database: `vambe_db`
+
+### 2. Setup Database Schema
 
 ```bash
 # Generate Prisma Client
 npx prisma generate
 
-# Run migrations
+# Run migrations to create database tables
 npx prisma migrate dev
 
-# (Optional) Open Prisma Studio
+# (Optional) Open Prisma Studio to view/edit data
 npx prisma studio
 ```
 
+### 3. Start the Application
+
+```bash
+# Development mode (with hot reload)
+npm run start:dev
+
+# Or production mode
+npm run start
+```
+
 ## Development
+
+**Note:** Make sure PostgreSQL is running (`docker compose up -d`) before starting the application.
 
 ```bash
 # Start in development mode (watch mode)
@@ -67,14 +99,46 @@ npm run build
 npm run start:prod
 ```
 
+### Docker Commands
+
+```bash
+# Start PostgreSQL
+docker compose up -d
+
+# Stop PostgreSQL
+docker compose down
+
+# View logs
+docker compose logs -f postgres
+
+# Reset database (WARNING: deletes all data)
+docker compose down -v
+docker compose up -d
+npx prisma migrate dev
+```
+
 The API will be available at `http://localhost:3001/api`
 
 ## API Documentation
 
-Swagger documentation is available at:
+**Swagger/OpenAPI documentation is available in the backend**.
+
+Once the application is running, access the interactive API documentation at:
+
 ```
 http://localhost:3001/api/docs
 ```
+
+The Swagger UI provides:
+- Complete API endpoint documentation
+- Request/response schemas
+- Interactive testing interface (try endpoints directly from the browser)
+- Endpoints organized by tags:
+  - `analytics` - Analytics and metrics endpoints
+  - `clients` - Client management endpoints
+  - `llm` - LLM and AI processing endpoints
+
+**Note:** The documentation is automatically generated from the code using `@nestjs/swagger` decorators in the controllers.
 
 ## Testing
 
