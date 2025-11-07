@@ -50,7 +50,7 @@ async function bootstrap() {
   const prismaService = app.get(PrismaService);
   try {
     await prismaService.$queryRaw`SELECT 1`;
-    console.log(`💾 Database connected successfully`);
+    console.log(`✅ Database connected successfully`);
   } catch (error) {
     console.error('❌ Database connection failed:', error);
   }
