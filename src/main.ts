@@ -3,6 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters';
+import { PrismaService } from './prisma/prisma.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -45,6 +46,15 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
+  
+  const prismaService = app.get(PrismaService);
+  try {
+    await prismaService.$queryRaw`SELECT 1`;
+    console.log(`💾 Database connected successfully`);
+  } catch (error) {
+    console.error('❌ Database connection failed:', error);
+  }
+  
   console.log(`🚀 Backend running on http://localhost:${port}/api`);
   console.log(`📚 API Documentation available at http://localhost:${port}/api/docs`);
 }
