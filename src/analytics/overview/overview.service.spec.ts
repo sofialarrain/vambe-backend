@@ -13,6 +13,7 @@ describe('OverviewService', () => {
       count: jest.fn(),
       findMany: jest.fn(),
     },
+    $queryRaw: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -36,22 +37,19 @@ describe('OverviewService', () => {
 
   describe('getOverview', () => {
     it('should return overview metrics successfully', async () => {
-      // Arrange
       mockPrismaService.client.count
-        .mockResolvedValueOnce(100) // totalClients
-        .mockResolvedValueOnce(60) // totalClosed
-        .mockResolvedValueOnce(95); // processedClients
+        .mockResolvedValueOnce(100)
+        .mockResolvedValueOnce(60)
+        .mockResolvedValueOnce(95);
 
-      // Act
       const result = await service.getOverview();
 
-      // Assert
       expect(result.totalClients).toBe(100);
       expect(result.totalClosed).toBe(60);
-      expect(result.totalOpen).toBe(40); // 100 - 60
-      expect(result.conversionRate).toBe(60.0); // (60/100) * 100
+      expect(result.totalOpen).toBe(40);
+      expect(result.conversionRate).toBe(60.0);
       expect(result.processedClients).toBe(95);
-      expect(result.unprocessedClients).toBe(5); // 100 - 95
+      expect(result.unprocessedClients).toBe(5);
 
       expect(mockPrismaService.client.count).toHaveBeenCalledTimes(3);
       expect(mockPrismaService.client.count).toHaveBeenNthCalledWith(1);
@@ -60,16 +58,13 @@ describe('OverviewService', () => {
     });
 
     it('should return zero conversion rate when no clients exist', async () => {
-      // Arrange
       mockPrismaService.client.count
-        .mockResolvedValueOnce(0) // totalClients
-        .mockResolvedValueOnce(0) // totalClosed
-        .mockResolvedValueOnce(0); // processedClients
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0)
+        .mockResolvedValueOnce(0);
 
-      // Act
       const result = await service.getOverview();
 
-      // Assert
       expect(result.totalClients).toBe(0);
       expect(result.totalClosed).toBe(0);
       expect(result.totalOpen).toBe(0);
@@ -79,181 +74,130 @@ describe('OverviewService', () => {
     });
 
     it('should use Promise.all for parallel execution', async () => {
-      // Arrange
       mockPrismaService.client.count
         .mockResolvedValueOnce(50)
         .mockResolvedValueOnce(30)
         .mockResolvedValueOnce(45);
 
-      // Act
       await service.getOverview();
 
-      // Assert
-      // Verify all calls were made (Promise.all ensures parallel execution)
       expect(mockPrismaService.client.count).toHaveBeenCalledTimes(3);
     });
 
     it('should calculate conversion rate correctly with decimal precision', async () => {
-      // Arrange
       mockPrismaService.client.count
-        .mockResolvedValueOnce(33) // totalClients
-        .mockResolvedValueOnce(10) // totalClosed
-        .mockResolvedValueOnce(30); // processedClients
+        .mockResolvedValueOnce(33)
+        .mockResolvedValueOnce(10)
+        .mockResolvedValueOnce(30);
 
-      // Act
       const result = await service.getOverview();
 
-      // Assert
-      // 10/33 * 100 = 30.30...
       expect(result.conversionRate).toBeCloseTo(30.3, 1);
     });
   });
 
   describe('getMetricsByDimension', () => {
     it('should return metrics by dimension successfully', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: true,
-          interactionVolume: 150,
+          value: 'Technology',
+          count: BigInt(2),
+          closed_count: BigInt(1),
+          total_interaction_volume: BigInt(350),
         },
         {
-          id: '2',
-          industry: 'Technology',
-          closed: false,
-          interactionVolume: 200,
-        },
-        {
-          id: '3',
-          industry: 'Finance',
-          closed: true,
-          interactionVolume: null,
+          value: 'Finance',
+          count: BigInt(1),
+          closed_count: BigInt(1),
+          total_interaction_volume: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
       expect(result.dimension).toBe('industry');
       expect(result.values.length).toBe(2);
       expect(result.values[0].value).toBe('Technology');
       expect(result.values[0].count).toBe(2);
       expect(result.values[0].closed).toBe(1);
       expect(result.values[0].conversionRate).toBe(50.0);
-      expect(result.values[0].totalInteractionVolume).toBe(350); // 150 + 200
-      expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
-        where: {
-          processed: true,
-          industry: { not: null },
-        },
-      });
+      expect(result.values[0].totalInteractionVolume).toBe(350);
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
     });
 
     it('should include totalInteractionVolume only for industry dimension', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          sentiment: 'positive',
-          closed: true,
-          interactionVolume: 150,
-        },
-        {
-          id: '2',
-          sentiment: 'positive',
-          closed: false,
-          interactionVolume: 200,
+          value: 'positive',
+          count: BigInt(2),
+          closed_count: BigInt(1),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
-      // Assert
       expect(result.dimension).toBe('sentiment');
       expect(result.values[0].totalInteractionVolume).toBeUndefined();
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
     });
 
     it('should filter out null values', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: true,
+          value: 'Technology',
+          count: BigInt(1),
+          closed_count: BigInt(1),
+          total_interaction_volume: BigInt(0),
         },
         {
-          id: '2',
-          industry: null,
-          closed: false,
-        },
-        {
-          id: '3',
-          industry: 'Finance',
-          closed: true,
+          value: 'Finance',
+          count: BigInt(1),
+          closed_count: BigInt(1),
+          total_interaction_volume: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
       expect(result.values.length).toBe(2);
       expect(result.values.find(v => v.value === null)).toBeUndefined();
     });
 
     it('should return empty array when no clients match dimension', async () => {
-      // Arrange
-      mockPrismaService.client.findMany.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
-      // Assert
       expect(result.dimension).toBe('sentiment');
       expect(result.values).toEqual([]);
     });
 
     it('should sort values by count descending', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: false,
+          value: 'Finance',
+          count: BigInt(3),
+          closed_count: BigInt(0),
+          total_interaction_volume: BigInt(0),
         },
         {
-          id: '2',
-          industry: 'Finance',
-          closed: false,
-        },
-        {
-          id: '3',
-          industry: 'Finance',
-          closed: false,
-        },
-        {
-          id: '4',
-          industry: 'Finance',
-          closed: false,
+          value: 'Technology',
+          count: BigInt(1),
+          closed_count: BigInt(0),
+          total_interaction_volume: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
       expect(result.values[0].value).toBe('Finance');
       expect(result.values[0].count).toBe(3);
       expect(result.values[1].value).toBe('Technology');
@@ -261,102 +205,69 @@ describe('OverviewService', () => {
     });
 
     it('should handle zero conversion rate correctly', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: false,
-        },
-        {
-          id: '2',
-          industry: 'Technology',
-          closed: false,
+          value: 'Technology',
+          count: BigInt(2),
+          closed_count: BigInt(0),
+          total_interaction_volume: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
       expect(result.values[0].conversionRate).toBe(0);
     });
 
     it('should handle 100% conversion rate correctly', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: true,
-        },
-        {
-          id: '2',
-          industry: 'Technology',
-          closed: true,
+          value: 'Technology',
+          count: BigInt(2),
+          closed_count: BigInt(2),
+          total_interaction_volume: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
       expect(result.values[0].conversionRate).toBe(100);
     });
 
     it('should calculate interaction volume correctly for industry dimension', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          industry: 'Technology',
-          closed: false,
-          interactionVolume: 100,
-        },
-        {
-          id: '2',
-          industry: 'Technology',
-          closed: false,
-          interactionVolume: 150,
-        },
-        {
-          id: '3',
-          industry: 'Technology',
-          closed: false,
-          interactionVolume: null, // Should be ignored
+          value: 'Technology',
+          count: BigInt(3),
+          closed_count: BigInt(0),
+          total_interaction_volume: BigInt(250),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
-      // Assert
-      expect(result.values[0].totalInteractionVolume).toBe(250); // 100 + 150
+      expect(result.values[0].totalInteractionVolume).toBe(250);
     });
 
     it('should not include totalInteractionVolume for non-industry dimensions', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          sentiment: 'positive',
-          closed: true,
-          interactionVolume: 100,
+          value: 'positive',
+          count: BigInt(1),
+          closed_count: BigInt(1),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
-      // Assert
       expect(result.values[0].totalInteractionVolume).toBeUndefined();
     });
   });

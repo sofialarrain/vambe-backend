@@ -35,7 +35,6 @@ describe('ConversionAnalysisController', () => {
 
   describe('getTimeline', () => {
     it('should return timeline metrics successfully', async () => {
-      // Arrange
       const mockTimelineMetrics: TimelineMetricsDto[] = [
         {
           date: '2024-01-15',
@@ -53,33 +52,26 @@ describe('ConversionAnalysisController', () => {
         mockTimelineMetrics,
       );
 
-      // Act
       const result = await controller.getTimeline();
 
-      // Assert
       expect(result).toEqual(mockTimelineMetrics);
       expect(service.getTimelineMetrics).toHaveBeenCalledTimes(1);
       expect(service.getTimelineMetrics).toHaveBeenCalledWith();
     });
 
     it('should return empty array when no timeline data exists', async () => {
-      // Arrange
       mockConversionAnalysisService.getTimelineMetrics.mockResolvedValue([]);
 
-      // Act
       const result = await controller.getTimeline();
 
-      // Assert
       expect(result).toEqual([]);
       expect(service.getTimelineMetrics).toHaveBeenCalledTimes(1);
     });
 
     it('should handle service errors', async () => {
-      // Arrange
       const error = new Error('Database connection failed');
       mockConversionAnalysisService.getTimelineMetrics.mockRejectedValue(error);
 
-      // Act & Assert
       await expect(controller.getTimeline()).rejects.toThrow(
         'Database connection failed',
       );
@@ -89,7 +81,6 @@ describe('ConversionAnalysisController', () => {
 
   describe('getConversionAnalysis', () => {
     it('should return conversion analysis successfully', async () => {
-      // Arrange
       const mockConversionAnalysis: ConversionAnalysisDto = {
         byIndustry: {
           dimension: 'industry',
@@ -152,10 +143,8 @@ describe('ConversionAnalysisController', () => {
         mockConversionAnalysis,
       );
 
-      // Act
       const result = await controller.getConversionAnalysis();
 
-      // Assert
       expect(result).toEqual(mockConversionAnalysis);
       expect(result.byIndustry).toBeDefined();
       expect(result.bySentiment).toBeDefined();
@@ -167,7 +156,6 @@ describe('ConversionAnalysisController', () => {
     });
 
     it('should return conversion analysis with empty values', async () => {
-      // Arrange
       const mockEmptyConversionAnalysis: ConversionAnalysisDto = {
         byIndustry: {
           dimension: 'industry',
@@ -195,10 +183,8 @@ describe('ConversionAnalysisController', () => {
         mockEmptyConversionAnalysis,
       );
 
-      // Act
       const result = await controller.getConversionAnalysis();
 
-      // Assert
       expect(result).toEqual(mockEmptyConversionAnalysis);
       expect(result.byIndustry.values).toEqual([]);
       expect(result.bySentiment.values).toEqual([]);
@@ -206,13 +192,11 @@ describe('ConversionAnalysisController', () => {
     });
 
     it('should handle service errors', async () => {
-      // Arrange
       const error = new Error('Service unavailable');
       mockConversionAnalysisService.getConversionAnalysis.mockRejectedValue(
         error,
       );
 
-      // Act & Assert
       await expect(controller.getConversionAnalysis()).rejects.toThrow(
         'Service unavailable',
       );

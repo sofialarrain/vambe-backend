@@ -152,7 +152,6 @@ export class FutureProjectionsService {
     const closed = currentMonthClients.filter((c) => c.closed).length;
     const meetings = currentMonthClients.length;
 
-    // Build daily data map
     const dailyData = new Map<number, { meetings: number; closed: number }>();
     currentMonthClients.forEach((client) => {
       const date = new Date(client.meetingDate);
@@ -353,7 +352,6 @@ export class FutureProjectionsService {
     const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const daysInNextMonth = new Date(nextMonthYear, nextMonth + 1, 0).getDate();
 
-    // Build current month timeline with actual daily data
     for (let day = 1; day <= daysInCurrentMonth; day++) {
       const dayData = currentMonthData.dailyData.get(day) || { meetings: 0, closed: 0 };
       const date = new Date(currentYear, currentMonth, day);
@@ -365,11 +363,9 @@ export class FutureProjectionsService {
       });
     }
 
-    // Calculate projected daily averages for next month
     const projectedDailyClosed = projections.nextMonth.estimatedClosed / daysInNextMonth;
     const projectedDailyMeetings = projections.nextMonth.estimatedMeetings / daysInNextMonth;
 
-    // Build next month timeline with projected data
     for (let day = 1; day <= daysInNextMonth; day++) {
       const date = new Date(nextMonthYear, nextMonth, day);
       timelineData.push({
@@ -424,7 +420,6 @@ export class FutureProjectionsService {
 
     let message = '';
 
-    // Closed deals part
     if (trendDirection === 'increasing' && Math.abs(trendPercentage) >= 5) {
       message += `Based on current month showing a ${Math.abs(trendPercentage).toFixed(1)}% increase in closed deals compared to last month`;
     } else if (trendDirection === 'decreasing' && Math.abs(trendPercentage) >= 5) {
@@ -445,7 +440,6 @@ export class FutureProjectionsService {
       message += `Based on current month performance (${currentMonthData.dailyAvg.closed.toFixed(2)} closed deals per day)`;
     }
 
-    // Meetings part
     if (meetingsTrendDirection === 'increasing' && Math.abs(meetingsTrendPercentage) >= 5) {
       message += ` and a ${Math.abs(meetingsTrendPercentage).toFixed(1)}% increase in meetings compared to last month`;
     } else if (meetingsTrendDirection === 'decreasing' && Math.abs(meetingsTrendPercentage) >= 5) {
@@ -469,7 +463,6 @@ export class FutureProjectionsService {
       message += ` (${currentMonthData.dailyAvg.meetings.toFixed(2)} meetings per day)`;
     }
 
-    // Projections
     message += `, we estimate ${projections.nextWeek.estimatedClosed} closed deals and ${projections.nextWeek.estimatedMeetings} meetings next week, and ${projections.nextMonth.estimatedClosed} closed deals and ${projections.nextMonth.estimatedMeetings} meetings next month.`;
 
     return message;

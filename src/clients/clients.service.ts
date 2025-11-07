@@ -1,14 +1,18 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto, ClientResponseDto, ClientFilterDto } from '../common/dto/client.dto';
 import { Client, Prisma } from '@prisma/client';
 import { API_CONSTANTS } from '../common/constants';
+import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
 export class ClientsService {
   private readonly logger = new Logger(ClientsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly cacheService?: CacheService,
+  ) {}
 
   async createClient(createClientDto: CreateClientDto): Promise<Client> {
     return this.prisma.client.create({
@@ -35,10 +39,17 @@ export class ClientsService {
       transcription: client.transcription,
     }));
 
-    return this.prisma.client.createMany({
+    const result = await this.prisma.client.createMany({
       data,
-      skipDuplicates: true, // Skip if email already exists
+      skipDuplicates: true,
     });
+
+    if (result.count > 0 && this.cacheService) {
+      this.cacheService.clearAnalyticsCache();
+      this.logger.log('Analytics cache invalidated after creating clients');
+    }
+
+    return result;
   }
 
   async findAll(filters: ClientFilterDto = {}): Promise<{ clients: Client[]; total: number; page: number; limit: number }> {
@@ -109,7 +120,14 @@ export class ClientsService {
   }
 
   async deleteAll(): Promise<{ count: number }> {
-    return this.prisma.client.deleteMany({});
+    const result = await this.prisma.client.deleteMany({});
+    
+    if (result.count > 0 && this.cacheService) {
+      this.cacheService.clearAnalyticsCache();
+      this.logger.log('Analytics cache invalidated after deleting clients');
+    }
+
+    return result;
   }
 
   async getUnprocessedClients(): Promise<Client[]> {

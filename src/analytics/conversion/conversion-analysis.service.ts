@@ -1,8 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { ConversionAnalysisDto, TimelineMetricsDto } from '../../common/dto/analytics';
 import { OverviewService } from '../overview/overview.service';
 import { DimensionEnum } from '../../common/dto/analytics/queries.dto';
+
+interface TimelineMetricRow {
+  date: Date;
+  total: bigint;
+  closed: bigint;
+}
 
 @Injectable()
 export class ConversionAnalysisService {
@@ -32,29 +39,33 @@ export class ConversionAnalysisService {
   }
 
   async getTimelineMetrics(): Promise<TimelineMetricsDto[]> {
-    const clients = await this.prisma.client.findMany({
-      orderBy: { meetingDate: 'asc' },
-    });
+    try {
+      const rawResults = await this.executeTimelineAggregationQuery();
 
-    const grouped = new Map<string, { total: number; closed: number }>();
-
-    for (const client of clients) {
-      const dateKey = client.meetingDate.toISOString().split('T')[0];
-      if (!grouped.has(dateKey)) {
-        grouped.set(dateKey, { total: 0, closed: 0 });
-      }
-      const entry = grouped.get(dateKey)!;
-      entry.total++;
-      if (client.closed) entry.closed++;
+      return rawResults.map((row) => {
+        const dateStr = row.date.toISOString().split('T')[0];
+        return {
+          date: dateStr,
+          total: Number(row.total),
+          closed: Number(row.closed),
+        };
+      });
+    } catch (error) {
+      this.logger.error('Error getting timeline metrics:', error);
+      throw error;
     }
+  }
 
-    return Array.from(grouped.entries())
-      .map(([date, data]) => ({
-        date,
-        total: data.total,
-        closed: data.closed,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+  private async executeTimelineAggregationQuery(): Promise<TimelineMetricRow[]> {
+    return this.prisma.$queryRaw<TimelineMetricRow[]>`
+      SELECT 
+        DATE_TRUNC('day', "meetingDate")::date as date,
+        COUNT(*)::bigint as total,
+        SUM(CASE WHEN closed = true THEN 1 ELSE 0 END)::bigint as closed
+      FROM clients
+      GROUP BY date
+      ORDER BY date ASC
+    `;
   }
 }
 

@@ -7,12 +7,6 @@ import { IndustriesAnalyticsModule } from './industries/industries-analytics.mod
 import { InsightsModule } from './insights/insights.module';
 import { PredictionsModule } from './predictions/predictions.module';
 
-/**
- * Analytics Module
- * 
- * Aggregates all analytics-related modules. Each sub-module has its own
- * controller and service, following the single responsibility principle.
- */
 @Module({
   imports: [
     OverviewModule,

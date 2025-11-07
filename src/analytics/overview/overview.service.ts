@@ -1,9 +1,16 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { ANALYTICS_CONSTANTS } from '../../common/constants';
 import { OverviewMetricsDto, DimensionMetricsDto } from '../../common/dto/analytics';
 import { DimensionEnum } from '../../common/dto/analytics/queries.dto';
-import { Client } from '@prisma/client';
+
+interface DimensionMetricRow {
+  value: string;
+  count: bigint;
+  closed_count: bigint;
+  total_interaction_volume?: bigint;
+}
 
 @Injectable()
 export class OverviewService {
@@ -43,47 +50,35 @@ export class OverviewService {
 
   /**
    * Get metrics grouped by a specific dimension
+   * Optimized with SQL aggregations for better performance with large datasets.
+   * Uses raw SQL to avoid N+1 queries and reduce memory usage.
+   * 
    * @param dimension - The dimension to group by (industry, sentiment, etc.)
    * @returns Metrics grouped by the specified dimension
    */
   async getMetricsByDimension(dimension: DimensionEnum): Promise<DimensionMetricsDto> {
     try {
-      const whereClause = this.buildDimensionWhereClause(dimension);
+      const fieldName = this.getDimensionFieldName(dimension);
+      const rawResults = await this.executeDimensionAggregationQuery(fieldName, dimension);
 
-      const clients = await this.prisma.client.findMany({
-        where: {
-          processed: true,
-          ...whereClause,
-        },
+      const values = rawResults.map((row) => {
+        const count = Number(row.count);
+        const closed = Number(row.closed_count);
+        
+        return {
+          value: row.value,
+          count,
+          closed,
+          conversionRate: parseFloat(
+            ((closed / count) * ANALYTICS_CONSTANTS.PERCENTAGE_MULTIPLIER)
+              .toFixed(ANALYTICS_CONSTANTS.DECIMAL_PLACES)
+          ),
+          ...(row.total_interaction_volume !== undefined 
+            ? { totalInteractionVolume: Number(row.total_interaction_volume) }
+            : {}
+          ),
+        };
       });
-
-      const grouped = new Map<string, { count: number; closed: number; totalInteractionVolume: number }>();
-
-      for (const client of clients) {
-        const value = this.getDimensionValue(client, dimension);
-        if (!value) continue;
-
-        if (!grouped.has(value)) {
-          grouped.set(value, { count: 0, closed: 0, totalInteractionVolume: 0 });
-        }
-
-        const entry = grouped.get(value)!;
-        entry.count++;
-        if (client.closed) entry.closed++;
-        if (dimension === DimensionEnum.INDUSTRY && client.interactionVolume) {
-          entry.totalInteractionVolume += client.interactionVolume;
-        }
-      }
-
-      const values = Array.from(grouped.entries()).map(([value, data]) => ({
-        value,
-        count: data.count,
-        closed: data.closed,
-        conversionRate: parseFloat(((data.closed / data.count) * ANALYTICS_CONSTANTS.PERCENTAGE_MULTIPLIER).toFixed(ANALYTICS_CONSTANTS.DECIMAL_PLACES)),
-        ...(dimension === DimensionEnum.INDUSTRY ? { totalInteractionVolume: data.totalInteractionVolume } : {}),
-      }));
-
-      values.sort((a, b) => b.count - a.count);
 
       return { dimension, values };
     } catch (error) {
@@ -93,10 +88,11 @@ export class OverviewService {
   }
 
   /**
-   * Build Prisma where clause for a specific dimension
+   * Get database field name for a dimension
+   * Maps enum values to actual database column names
    * @private
    */
-  private buildDimensionWhereClause(dimension: DimensionEnum): Record<string, unknown> {
+  private getDimensionFieldName(dimension: DimensionEnum): string {
     const dimensionFieldMap: Record<DimensionEnum, string> = {
       [DimensionEnum.INDUSTRY]: 'industry',
       [DimensionEnum.SENTIMENT]: 'sentiment',
@@ -110,31 +106,49 @@ export class OverviewService {
       throw new BadRequestException(`Invalid dimension: ${dimension}`);
     }
 
-    return {
-      [fieldName]: { not: null },
-    };
+    return fieldName;
   }
 
   /**
-   * Get the value of a dimension from a client object in a type-safe way
+   * Execute optimized SQL aggregation query for dimension metrics
+   * Uses raw SQL with type safety to perform aggregations at database level
+   * This significantly improves performance by avoiding loading all records into memory
+   * 
    * @private
    */
-  private getDimensionValue(client: Client, dimension: DimensionEnum): string | null {
-    switch (dimension) {
-      case DimensionEnum.INDUSTRY:
-        return client.industry;
-      case DimensionEnum.SENTIMENT:
-        return client.sentiment;
-      case DimensionEnum.URGENCY_LEVEL:
-        return client.urgencyLevel;
-      case DimensionEnum.DISCOVERY_SOURCE:
-        return client.discoverySource;
-      case DimensionEnum.OPERATION_SIZE:
-        return client.operationSize;
-      default:
-        this.logger.warn(`Unknown dimension: ${dimension}`);
-        return null;
+  private async executeDimensionAggregationQuery(
+    fieldName: string,
+    dimension: DimensionEnum,
+  ): Promise<DimensionMetricRow[]> {
+    const isIndustry = dimension === DimensionEnum.INDUSTRY;
+    
+    if (isIndustry) {
+      return this.prisma.$queryRaw<DimensionMetricRow[]>`
+        SELECT 
+          ${Prisma.raw(`"${fieldName}"`)} as value,
+          COUNT(*)::bigint as count,
+          SUM(CASE WHEN closed = true THEN 1 ELSE 0 END)::bigint as closed_count,
+          SUM(COALESCE("interactionVolume", 0))::bigint as total_interaction_volume
+        FROM clients
+        WHERE processed = true 
+          AND ${Prisma.raw(`"${fieldName}"`)} IS NOT NULL
+        GROUP BY ${Prisma.raw(`"${fieldName}"`)}
+        ORDER BY count DESC
+      `;
+    } else {
+      return this.prisma.$queryRaw<DimensionMetricRow[]>`
+        SELECT 
+          ${Prisma.raw(`"${fieldName}"`)} as value,
+          COUNT(*)::bigint as count,
+          SUM(CASE WHEN closed = true THEN 1 ELSE 0 END)::bigint as closed_count
+        FROM clients
+        WHERE processed = true 
+          AND ${Prisma.raw(`"${fieldName}"`)} IS NOT NULL
+        GROUP BY ${Prisma.raw(`"${fieldName}"`)}
+        ORDER BY count DESC
+      `;
     }
   }
+
 }
 

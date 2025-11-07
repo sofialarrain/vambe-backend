@@ -14,6 +14,7 @@ describe('ConversionAnalysisService', () => {
     client: {
       findMany: jest.fn(),
     },
+    $queryRaw: jest.fn(),
   };
 
   const mockOverviewService = {
@@ -114,10 +115,8 @@ describe('ConversionAnalysisService', () => {
         .mockResolvedValueOnce(mockByDiscovery)
         .mockResolvedValueOnce(mockByOperationSize);
 
-      // Act
       const result = await service.getConversionAnalysis();
 
-      // Assert
       expect(result).toEqual({
         byIndustry: mockByIndustry,
         bySentiment: mockBySentiment,
@@ -135,7 +134,6 @@ describe('ConversionAnalysisService', () => {
     });
 
     it('should use Promise.all for parallel execution', async () => {
-      // Arrange
       const mockDimensionResult: DimensionMetricsDto = {
         dimension: 'industry',
         values: [],
@@ -143,47 +141,31 @@ describe('ConversionAnalysisService', () => {
 
       mockOverviewService.getMetricsByDimension.mockResolvedValue(mockDimensionResult);
 
-      // Act
       await service.getConversionAnalysis();
 
-      // Assert
-      // Verify all calls were made (Promise.all ensures parallel execution)
       expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledTimes(5);
     });
   });
 
   describe('getTimelineMetrics', () => {
     it('should return timeline metrics grouped by date', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          meetingDate: new Date('2024-01-15T10:00:00Z'),
-          closed: true,
+          date: new Date('2024-01-15T00:00:00Z'),
+          total: BigInt(2),
+          closed: BigInt(1),
         },
         {
-          id: '2',
-          meetingDate: new Date('2024-01-15T14:00:00Z'),
-          closed: false,
-        },
-        {
-          id: '3',
-          meetingDate: new Date('2024-01-16T10:00:00Z'),
-          closed: true,
-        },
-        {
-          id: '4',
-          meetingDate: new Date('2024-01-16T15:00:00Z'),
-          closed: true,
+          date: new Date('2024-01-16T00:00:00Z'),
+          total: BigInt(2),
+          closed: BigInt(2),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getTimelineMetrics();
 
-      // Assert
       expect(result).toEqual([
         {
           date: '2024-01-15',
@@ -197,58 +179,35 @@ describe('ConversionAnalysisService', () => {
         },
       ]);
 
-      expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
-        orderBy: { meetingDate: 'asc' },
-      });
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
     });
 
     it('should return empty array when no clients exist', async () => {
-      // Arrange
-      mockPrismaService.client.findMany.mockResolvedValue([]);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
 
-      // Act
       const result = await service.getTimelineMetrics();
 
-      // Assert
       expect(result).toEqual([]);
     });
 
     it('should correctly count closed and total meetings per date', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          meetingDate: new Date('2024-01-15T10:00:00Z'),
-          closed: true,
+          date: new Date('2024-01-15T00:00:00Z'),
+          total: BigInt(3),
+          closed: BigInt(2),
         },
         {
-          id: '2',
-          meetingDate: new Date('2024-01-15T11:00:00Z'),
-          closed: true,
-        },
-        {
-          id: '3',
-          meetingDate: new Date('2024-01-15T12:00:00Z'),
-          closed: false,
-        },
-        {
-          id: '4',
-          meetingDate: new Date('2024-01-16T10:00:00Z'),
-          closed: false,
-        },
-        {
-          id: '5',
-          meetingDate: new Date('2024-01-16T11:00:00Z'),
-          closed: false,
+          date: new Date('2024-01-16T00:00:00Z'),
+          total: BigInt(2),
+          closed: BigInt(0),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getTimelineMetrics();
 
-      // Assert
       expect(result).toEqual([
         {
           date: '2024-01-15',
@@ -264,31 +223,28 @@ describe('ConversionAnalysisService', () => {
     });
 
     it('should sort results by date', async () => {
-      // Arrange
-      const mockClients = [
+      const mockRawResults = [
         {
-          id: '1',
-          meetingDate: new Date('2024-01-20T10:00:00Z'),
-          closed: true,
+          date: new Date('2024-01-15T00:00:00Z'),
+          total: BigInt(1),
+          closed: BigInt(1),
         },
         {
-          id: '2',
-          meetingDate: new Date('2024-01-15T10:00:00Z'),
-          closed: true,
+          date: new Date('2024-01-18T00:00:00Z'),
+          total: BigInt(1),
+          closed: BigInt(0),
         },
         {
-          id: '3',
-          meetingDate: new Date('2024-01-18T10:00:00Z'),
-          closed: false,
+          date: new Date('2024-01-20T00:00:00Z'),
+          total: BigInt(1),
+          closed: BigInt(1),
         },
       ];
 
-      mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
+      mockPrismaService.$queryRaw.mockResolvedValue(mockRawResults);
 
-      // Act
       const result = await service.getTimelineMetrics();
 
-      // Assert
       expect(result.map((r) => r.date)).toEqual(['2024-01-15', '2024-01-18', '2024-01-20']);
     });
   });

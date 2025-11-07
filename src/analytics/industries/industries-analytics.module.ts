@@ -7,12 +7,6 @@ import { IndustriesRankingService } from './services/industries-ranking.service'
 import { IndustriesAnalysisService } from './services/industries-analysis.service';
 import { IndustriesInsightsService } from './services/industries-insights.service';
 
-/**
- * Industries Analytics Module
- *
- * Aggregates all industry analytics services following the single responsibility principle.
- * Each service handles a specific aspect of industry analytics.
- */
 @Module({
   imports: [PrismaModule, GeneratorsModule, ConversionAnalysisModule],
   controllers: [IndustriesAnalyticsController],
