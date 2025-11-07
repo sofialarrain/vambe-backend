@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { OverviewService } from './overview.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ANALYTICS_CONSTANTS } from '../../common/constants';
+import { DimensionEnum } from '../../common/dto/analytics/queries.dto';
 
 describe('OverviewService', () => {
   let service: OverviewService;
@@ -135,7 +136,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.dimension).toBe('industry');
@@ -173,7 +174,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('sentiment');
+      const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
       // Assert
       expect(result.dimension).toBe('sentiment');
@@ -203,7 +204,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.values.length).toBe(2);
@@ -215,7 +216,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue([]);
 
       // Act
-      const result = await service.getMetricsByDimension('sentiment');
+      const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
       // Assert
       expect(result.dimension).toBe('sentiment');
@@ -250,7 +251,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.values[0].value).toBe('Finance');
@@ -277,7 +278,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.values[0].conversionRate).toBe(0);
@@ -301,7 +302,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.values[0].conversionRate).toBe(100);
@@ -333,7 +334,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('industry');
+      const result = await service.getMetricsByDimension(DimensionEnum.INDUSTRY);
 
       // Assert
       expect(result.values[0].totalInteractionVolume).toBe(250); // 100 + 150
@@ -353,7 +354,7 @@ describe('OverviewService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
       // Act
-      const result = await service.getMetricsByDimension('sentiment');
+      const result = await service.getMetricsByDimension(DimensionEnum.SENTIMENT);
 
       // Assert
       expect(result.values[0].totalInteractionVolume).toBeUndefined();

@@ -3,6 +3,7 @@ import { ConversionAnalysisService } from './conversion-analysis.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OverviewService } from '../overview/overview.service';
 import { ConversionAnalysisDto, DimensionMetricsDto } from '../../common/dto/analytics';
+import { DimensionEnum } from '../../common/dto/analytics/queries.dto';
 
 describe('ConversionAnalysisService', () => {
   let service: ConversionAnalysisService;
@@ -126,11 +127,11 @@ describe('ConversionAnalysisService', () => {
       });
 
       expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledTimes(5);
-      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith('industry');
-      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith('sentiment');
-      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith('urgencyLevel');
-      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith('discoverySource');
-      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith('operationSize');
+      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith(DimensionEnum.INDUSTRY);
+      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith(DimensionEnum.SENTIMENT);
+      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith(DimensionEnum.URGENCY_LEVEL);
+      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith(DimensionEnum.DISCOVERY_SOURCE);
+      expect(mockOverviewService.getMetricsByDimension).toHaveBeenCalledWith(DimensionEnum.OPERATION_SIZE);
     });
 
     it('should use Promise.all for parallel execution', async () => {

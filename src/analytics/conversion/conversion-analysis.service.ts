@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConversionAnalysisDto, TimelineMetricsDto } from '../../common/dto/analytics';
 import { OverviewService } from '../overview/overview.service';
+import { DimensionEnum } from '../../common/dto/analytics/queries.dto';
 
 @Injectable()
 export class ConversionAnalysisService {
@@ -14,11 +15,11 @@ export class ConversionAnalysisService {
 
   async getConversionAnalysis(): Promise<ConversionAnalysisDto> {
     const [byIndustry, bySentiment, byUrgency, byDiscovery, byOperationSize] = await Promise.all([
-      this.overviewService.getMetricsByDimension('industry'),
-      this.overviewService.getMetricsByDimension('sentiment'),
-      this.overviewService.getMetricsByDimension('urgencyLevel'),
-      this.overviewService.getMetricsByDimension('discoverySource'),
-      this.overviewService.getMetricsByDimension('operationSize'),
+      this.overviewService.getMetricsByDimension(DimensionEnum.INDUSTRY),
+      this.overviewService.getMetricsByDimension(DimensionEnum.SENTIMENT),
+      this.overviewService.getMetricsByDimension(DimensionEnum.URGENCY_LEVEL),
+      this.overviewService.getMetricsByDimension(DimensionEnum.DISCOVERY_SOURCE),
+      this.overviewService.getMetricsByDimension(DimensionEnum.OPERATION_SIZE),
     ]);
 
     return {
