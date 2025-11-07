@@ -1,6 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SellersAnalyticsController } from './sellers-analytics.controller';
-import { SellersAnalyticsService } from './sellers-analytics.service';
+import { SellersMetricsService } from './services/sellers-metrics.service';
+import { SellersRankingsService } from './services/sellers-rankings.service';
+import { SellersTimelineService } from './services/sellers-timeline.service';
+import { SellersCorrelationsService } from './services/sellers-correlations.service';
 import { GranularityEnum } from '../../common/dto/analytics/queries.dto';
 import {
   SellerMetricsDto,
@@ -14,13 +17,25 @@ import {
 
 describe('SellersAnalyticsController', () => {
   let controller: SellersAnalyticsController;
-  let service: jest.Mocked<SellersAnalyticsService>;
+  let sellersMetricsService: jest.Mocked<SellersMetricsService>;
+  let sellersRankingsService: jest.Mocked<SellersRankingsService>;
+  let sellersTimelineService: jest.Mocked<SellersTimelineService>;
+  let sellersCorrelationsService: jest.Mocked<SellersCorrelationsService>;
 
-  const mockSellersAnalyticsService = {
+  const mockSellersMetricsService = {
     getSellerMetrics: jest.fn(),
+  };
+
+  const mockSellersRankingsService = {
     getSellerOfWeek: jest.fn(),
     getAnnualSellerRanking: jest.fn(),
+  };
+
+  const mockSellersTimelineService = {
     getSellersTimeline: jest.fn(),
+  };
+
+  const mockSellersCorrelationsService = {
     getSellerCorrelations: jest.fn(),
     getSellerCorrelationInsights: jest.fn(),
     getSellerInsights: jest.fn(),
@@ -33,14 +48,29 @@ describe('SellersAnalyticsController', () => {
       controllers: [SellersAnalyticsController],
       providers: [
         {
-          provide: SellersAnalyticsService,
-          useValue: mockSellersAnalyticsService,
+          provide: SellersMetricsService,
+          useValue: mockSellersMetricsService,
+        },
+        {
+          provide: SellersRankingsService,
+          useValue: mockSellersRankingsService,
+        },
+        {
+          provide: SellersTimelineService,
+          useValue: mockSellersTimelineService,
+        },
+        {
+          provide: SellersCorrelationsService,
+          useValue: mockSellersCorrelationsService,
         },
       ],
     }).compile();
 
     controller = module.get<SellersAnalyticsController>(SellersAnalyticsController);
-    service = module.get(SellersAnalyticsService);
+    sellersMetricsService = module.get(SellersMetricsService);
+    sellersRankingsService = module.get(SellersRankingsService);
+    sellersTimelineService = module.get(SellersTimelineService);
+    sellersCorrelationsService = module.get(SellersCorrelationsService);
   });
 
   afterEach(() => {
@@ -49,7 +79,6 @@ describe('SellersAnalyticsController', () => {
 
   describe('getSellerMetrics', () => {
     it('should return seller metrics successfully', async () => {
-      // Arrange
       const mockMetrics: SellerMetricsDto[] = [
         {
           seller: 'Seller 1',
@@ -65,22 +94,19 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellerMetrics.mockResolvedValue(mockMetrics);
+      mockSellersMetricsService.getSellerMetrics.mockResolvedValue(mockMetrics);
 
-      // Act
       const result = await controller.getSellerMetrics();
 
-      // Assert
       expect(result).toEqual(mockMetrics);
       expect(result.length).toBe(2);
-      expect(service.getSellerMetrics).toHaveBeenCalledTimes(1);
-      expect(service.getSellerMetrics).toHaveBeenCalledWith();
+      expect(sellersMetricsService.getSellerMetrics).toHaveBeenCalledTimes(1);
+      expect(sellersMetricsService.getSellerMetrics).toHaveBeenCalledWith();
     });
   });
 
   describe('getSellerOfWeek', () => {
     it('should return seller of the week with default current week', async () => {
-      // Arrange
       const mockWeekPodium: WeekPodiumDto = {
         weekPodium: [
           {
@@ -96,19 +122,16 @@ describe('SellersAnalyticsController', () => {
         },
       };
 
-      mockSellersAnalyticsService.getSellerOfWeek.mockResolvedValue(mockWeekPodium);
+      mockSellersRankingsService.getSellerOfWeek.mockResolvedValue(mockWeekPodium);
 
-      // Act
       const result = await controller.getSellerOfWeek({});
 
-      // Assert
       expect(result).toEqual(mockWeekPodium);
-      expect(service.getSellerOfWeek).toHaveBeenCalledTimes(1);
-      expect(service.getSellerOfWeek).toHaveBeenCalledWith(undefined, undefined);
+      expect(sellersRankingsService.getSellerOfWeek).toHaveBeenCalledTimes(1);
+      expect(sellersRankingsService.getSellerOfWeek).toHaveBeenCalledWith(undefined, undefined);
     });
 
     it('should return seller of the week with specific week and year', async () => {
-      // Arrange
       const mockWeekPodium: WeekPodiumDto = {
         weekPodium: [
           {
@@ -124,23 +147,20 @@ describe('SellersAnalyticsController', () => {
         },
       };
 
-      mockSellersAnalyticsService.getSellerOfWeek.mockResolvedValue(mockWeekPodium);
+      mockSellersRankingsService.getSellerOfWeek.mockResolvedValue(mockWeekPodium);
 
-      // Act
       const result = await controller.getSellerOfWeek({
         weekStart: '2024-01-01',
         year: 2024,
       });
 
-      // Assert
       expect(result).toEqual(mockWeekPodium);
-      expect(service.getSellerOfWeek).toHaveBeenCalledWith('2024-01-01', 2024);
+      expect(sellersRankingsService.getSellerOfWeek).toHaveBeenCalledWith('2024-01-01', 2024);
     });
   });
 
   describe('getAnnualSellerRanking', () => {
     it('should return annual seller ranking with default year', async () => {
-      // Arrange
       const mockRanking: AnnualSellerRankingDto = {
         year: 2024,
         ranking: [
@@ -159,19 +179,16 @@ describe('SellersAnalyticsController', () => {
         ],
       };
 
-      mockSellersAnalyticsService.getAnnualSellerRanking.mockResolvedValue(mockRanking);
+      mockSellersRankingsService.getAnnualSellerRanking.mockResolvedValue(mockRanking);
 
-      // Act
       const result = await controller.getAnnualSellerRanking({});
 
-      // Assert
       expect(result).toEqual(mockRanking);
-      expect(service.getAnnualSellerRanking).toHaveBeenCalledTimes(1);
-      expect(service.getAnnualSellerRanking).toHaveBeenCalledWith(undefined);
+      expect(sellersRankingsService.getAnnualSellerRanking).toHaveBeenCalledTimes(1);
+      expect(sellersRankingsService.getAnnualSellerRanking).toHaveBeenCalledWith(undefined);
     });
 
     it('should return annual seller ranking with specific year', async () => {
-      // Arrange
       const mockRanking: AnnualSellerRankingDto = {
         year: 2023,
         ranking: [
@@ -184,20 +201,17 @@ describe('SellersAnalyticsController', () => {
         ],
       };
 
-      mockSellersAnalyticsService.getAnnualSellerRanking.mockResolvedValue(mockRanking);
+      mockSellersRankingsService.getAnnualSellerRanking.mockResolvedValue(mockRanking);
 
-      // Act
       const result = await controller.getAnnualSellerRanking({ year: 2023 });
 
-      // Assert
       expect(result).toEqual(mockRanking);
-      expect(service.getAnnualSellerRanking).toHaveBeenCalledWith(2023);
+      expect(sellersRankingsService.getAnnualSellerRanking).toHaveBeenCalledWith(2023);
     });
   });
 
   describe('getSellersTimeline', () => {
     it('should return sellers timeline with default week granularity', async () => {
-      // Arrange
       const mockTimeline: SellerTimelineDataDto[] = [
         {
           period: '2024-W01',
@@ -215,18 +229,15 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellersTimeline.mockResolvedValue(mockTimeline);
+      mockSellersTimelineService.getSellersTimeline.mockResolvedValue(mockTimeline);
 
-      // Act
       const result = await controller.getSellersTimeline({});
 
-      // Assert
       expect(result).toEqual(mockTimeline);
-      expect(service.getSellersTimeline).toHaveBeenCalledWith(GranularityEnum.WEEK);
+      expect(sellersTimelineService.getSellersTimeline).toHaveBeenCalledWith(GranularityEnum.WEEK);
     });
 
     it('should return sellers timeline with month granularity', async () => {
-      // Arrange
       const mockTimeline: SellerTimelineDataDto[] = [
         {
           period: '2024-01',
@@ -237,20 +248,17 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellersTimeline.mockResolvedValue(mockTimeline);
+      mockSellersTimelineService.getSellersTimeline.mockResolvedValue(mockTimeline);
 
-      // Act
       const result = await controller.getSellersTimeline({ granularity: GranularityEnum.MONTH });
 
-      // Assert
       expect(result).toEqual(mockTimeline);
-      expect(service.getSellersTimeline).toHaveBeenCalledWith(GranularityEnum.MONTH);
+      expect(sellersTimelineService.getSellersTimeline).toHaveBeenCalledWith(GranularityEnum.MONTH);
     });
   });
 
   describe('getSellerCorrelations', () => {
     it('should return seller correlations successfully', async () => {
-      // Arrange
       const mockCorrelations: SellerCorrelationDto[] = [
         {
           seller: 'Seller 1',
@@ -265,41 +273,35 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellerCorrelations.mockResolvedValue(mockCorrelations);
+      mockSellersCorrelationsService.getSellerCorrelations.mockResolvedValue(mockCorrelations);
 
-      // Act
       const result = await controller.getSellerCorrelations();
 
-      // Assert
       expect(result).toEqual(mockCorrelations);
-      expect(service.getSellerCorrelations).toHaveBeenCalledTimes(1);
-      expect(service.getSellerCorrelations).toHaveBeenCalledWith();
+      expect(sellersCorrelationsService.getSellerCorrelations).toHaveBeenCalledTimes(1);
+      expect(sellersCorrelationsService.getSellerCorrelations).toHaveBeenCalledWith();
     });
   });
 
   describe('getSellerCorrelationInsights', () => {
     it('should return seller correlation insights successfully', async () => {
-      // Arrange
       const mockInsights: Record<string, string> = {
         'Seller 1': 'Seller 1 shows strong performance with Technology clients.',
         'Seller 2': 'No significant correlations identified yet.',
       };
 
-      mockSellersAnalyticsService.getSellerCorrelationInsights.mockResolvedValue(mockInsights);
+      mockSellersCorrelationsService.getSellerCorrelationInsights.mockResolvedValue(mockInsights);
 
-      // Act
       const result = await controller.getSellerCorrelationInsights();
 
-      // Assert
       expect(result).toEqual(mockInsights);
-      expect(service.getSellerCorrelationInsights).toHaveBeenCalledTimes(1);
-      expect(service.getSellerCorrelationInsights).toHaveBeenCalledWith();
+      expect(sellersCorrelationsService.getSellerCorrelationInsights).toHaveBeenCalledTimes(1);
+      expect(sellersCorrelationsService.getSellerCorrelationInsights).toHaveBeenCalledWith();
     });
   });
 
   describe('getSellerInsights', () => {
     it('should return seller insights successfully', async () => {
-      // Arrange
       const mockInsights: SellerInsightDto[] = [
         {
           seller: 'Seller 1',
@@ -310,21 +312,18 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellerInsights.mockResolvedValue(mockInsights);
+      mockSellersCorrelationsService.getSellerInsights.mockResolvedValue(mockInsights);
 
-      // Act
       const result = await controller.getSellerInsights();
 
-      // Assert
       expect(result).toEqual(mockInsights);
-      expect(service.getSellerInsights).toHaveBeenCalledTimes(1);
-      expect(service.getSellerInsights).toHaveBeenCalledWith();
+      expect(sellersCorrelationsService.getSellerInsights).toHaveBeenCalledTimes(1);
+      expect(sellersCorrelationsService.getSellerInsights).toHaveBeenCalledWith();
     });
   });
 
   describe('getSellerAIFeedback', () => {
     it('should return seller AI feedback successfully', async () => {
-      // Arrange
       const mockFeedback: SellerAIFeedbackDto[] = [
         {
           seller: 'Seller 1',
@@ -335,45 +334,37 @@ describe('SellersAnalyticsController', () => {
         },
       ];
 
-      mockSellersAnalyticsService.getSellerAIFeedback.mockResolvedValue(mockFeedback);
+      mockSellersCorrelationsService.getSellerAIFeedback.mockResolvedValue(mockFeedback);
 
-      // Act
       const result = await controller.getSellerAIFeedback();
 
-      // Assert
       expect(result).toEqual(mockFeedback);
-      expect(service.getSellerAIFeedback).toHaveBeenCalledTimes(1);
-      expect(service.getSellerAIFeedback).toHaveBeenCalledWith();
+      expect(sellersCorrelationsService.getSellerAIFeedback).toHaveBeenCalledTimes(1);
+      expect(sellersCorrelationsService.getSellerAIFeedback).toHaveBeenCalledWith();
     });
   });
 
   describe('getSellerTimelineInsight', () => {
     it('should return seller timeline insight with default month granularity', async () => {
-      // Arrange
       const mockInsight = 'Seller performance shows increasing trends over time.';
 
-      mockSellersAnalyticsService.getSellerTimelineInsight.mockResolvedValue(mockInsight);
+      mockSellersCorrelationsService.getSellerTimelineInsight.mockResolvedValue(mockInsight);
 
-      // Act
       const result = await controller.getSellerTimelineInsight({});
 
-      // Assert
       expect(result).toEqual({ insight: mockInsight });
-      expect(service.getSellerTimelineInsight).toHaveBeenCalledWith(GranularityEnum.MONTH);
+      expect(sellersCorrelationsService.getSellerTimelineInsight).toHaveBeenCalledWith(GranularityEnum.MONTH);
     });
 
     it('should return seller timeline insight with week granularity', async () => {
-      // Arrange
       const mockInsight = 'Weekly seller performance analysis.';
 
-      mockSellersAnalyticsService.getSellerTimelineInsight.mockResolvedValue(mockInsight);
+      mockSellersCorrelationsService.getSellerTimelineInsight.mockResolvedValue(mockInsight);
 
-      // Act
       const result = await controller.getSellerTimelineInsight({ granularity: GranularityEnum.WEEK });
 
-      // Assert
       expect(result).toEqual({ insight: mockInsight });
-      expect(service.getSellerTimelineInsight).toHaveBeenCalledWith(GranularityEnum.WEEK);
+      expect(sellersCorrelationsService.getSellerTimelineInsight).toHaveBeenCalledWith(GranularityEnum.WEEK);
     });
   });
 });
