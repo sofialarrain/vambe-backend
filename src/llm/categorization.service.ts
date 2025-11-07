@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ClientsService } from '../clients/clients.service';
 import { AnthropicClientService } from './core/anthropic-client.service';
 import { ResponseParserService } from './core/response-parser.service';
@@ -6,7 +6,6 @@ import { CategorizationPromptBuilder } from './prompts/categorization-prompt.bui
 import { NormalizationUtil } from './utils/normalization.util';
 import { LLM_CONSTANTS } from '../common/constants';
 import { CategorizationResultDto } from '../common/dto/llm';
-import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
 export class CategorizationService {
@@ -16,7 +15,6 @@ export class CategorizationService {
     private readonly anthropicClient: AnthropicClientService,
     private readonly responseParser: ResponseParserService,
     private readonly clientsService: ClientsService,
-    @Optional() private readonly cacheService?: CacheService,
   ) {}
 
   async processAllUnprocessedClients(): Promise<{ processed: number; failed: number }> {
@@ -48,11 +46,6 @@ export class CategorizationService {
       }
     }
 
-    if (processed > 0 && this.cacheService) {
-      this.cacheService.clearAnalyticsCache();
-      this.logger.log('Analytics cache invalidated after processing clients with AI');
-    }
-
     return { processed, failed };
   }
 
@@ -73,10 +66,6 @@ export class CategorizationService {
     await this.clientsService.markAsProcessed(client.id, categorization);
     this.logger.log(`Successfully processed client: ${client.name}`);
 
-    if (this.cacheService) {
-      this.cacheService.clearAnalyticsCache();
-      this.logger.log('Analytics cache invalidated after processing client with AI');
-    }
   }
 
   async categorizeTranscription(

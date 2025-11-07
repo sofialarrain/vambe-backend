@@ -1,18 +1,14 @@
-import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto, ClientResponseDto, ClientFilterDto } from '../common/dto/client.dto';
 import { Client, Prisma } from '@prisma/client';
 import { API_CONSTANTS } from '../common/constants';
-import { CacheService } from '../common/services/cache.service';
 
 @Injectable()
 export class ClientsService {
   private readonly logger = new Logger(ClientsService.name);
 
-  constructor(
-    private readonly prisma: PrismaService,
-    @Optional() private readonly cacheService?: CacheService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async createClient(createClientDto: CreateClientDto): Promise<Client> {
     return this.prisma.client.create({
@@ -39,17 +35,10 @@ export class ClientsService {
       transcription: client.transcription,
     }));
 
-    const result = await this.prisma.client.createMany({
+    return this.prisma.client.createMany({
       data,
       skipDuplicates: true,
     });
-
-    if (result.count > 0 && this.cacheService) {
-      this.cacheService.clearAnalyticsCache();
-      this.logger.log('Analytics cache invalidated after creating clients');
-    }
-
-    return result;
   }
 
   async findAll(filters: ClientFilterDto = {}): Promise<{ clients: Client[]; total: number; page: number; limit: number }> {
@@ -142,13 +131,6 @@ export class ClientsService {
       analysisLogsResult.count +
       processingBatchesResult.count +
       clientsResult.count;
-
-    if (total > 0 && this.cacheService) {
-      this.cacheService.clearAnalyticsCache();
-      this.logger.log(
-        'Analytics cache invalidated after clearing all database tables',
-      );
-    }
 
     this.logger.log(
       `Cleared all tables: ${clientsResult.count} clients, ${processingBatchesResult.count} processing batches, ${analysisLogsResult.count} analysis logs`,
