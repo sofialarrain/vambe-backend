@@ -51,7 +51,6 @@ export class OverviewService {
       const entry = grouped.get(value)!;
       entry.count++;
       if (client.closed) entry.closed++;
-      // Add interaction volume if available (only for industry dimension)
       if (dimension === 'industry' && client.interactionVolume) {
         entry.totalInteractionVolume += client.interactionVolume;
       }
