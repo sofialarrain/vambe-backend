@@ -119,15 +119,47 @@ export class ClientsService {
     });
   }
 
-  async deleteAll(): Promise<{ count: number }> {
-    const result = await this.prisma.client.deleteMany({});
-    
-    if (result.count > 0 && this.cacheService) {
+  /**
+   * Delete all clients and clear related tables
+   * This empties clients, processing_batches, and analysis_logs tables
+   * but keeps the table structure intact
+   * @returns Summary of deleted records from all tables
+   */
+  async deleteAll(): Promise<{
+    clients: number;
+    processingBatches: number;
+    analysisLogs: number;
+    total: number;
+  }> {
+    const [analysisLogsResult, processingBatchesResult, clientsResult] =
+      await Promise.all([
+        this.prisma.analysisLog.deleteMany({}),
+        this.prisma.processingBatch.deleteMany({}),
+        this.prisma.client.deleteMany({}),
+      ]);
+
+    const total =
+      analysisLogsResult.count +
+      processingBatchesResult.count +
+      clientsResult.count;
+
+    if (total > 0 && this.cacheService) {
       this.cacheService.clearAnalyticsCache();
-      this.logger.log('Analytics cache invalidated after deleting clients');
+      this.logger.log(
+        'Analytics cache invalidated after clearing all database tables',
+      );
     }
 
-    return result;
+    this.logger.log(
+      `Cleared all tables: ${clientsResult.count} clients, ${processingBatchesResult.count} processing batches, ${analysisLogsResult.count} analysis logs`,
+    );
+
+    return {
+      clients: clientsResult.count,
+      processingBatches: processingBatchesResult.count,
+      analysisLogs: analysisLogsResult.count,
+      total,
+    };
   }
 
   async getUnprocessedClients(): Promise<Client[]> {

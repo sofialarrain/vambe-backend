@@ -20,6 +20,12 @@ describe('ClientsService', () => {
       deleteMany: jest.fn(),
       count: jest.fn(),
     },
+    analysisLog: {
+      deleteMany: jest.fn(),
+    },
+    processingBatch: {
+      deleteMany: jest.fn(),
+    },
   };
 
   beforeEach(async () => {
@@ -43,7 +49,6 @@ describe('ClientsService', () => {
 
   describe('createClient', () => {
     it('should create a client successfully', async () => {
-      // Arrange
       const createClientDto: CreateClientDto = {
         name: 'John Doe',
         email: 'john@example.com',
@@ -75,10 +80,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.create.mockResolvedValue(expectedClient);
 
-      // Act
       const result = await service.createClient(createClientDto);
 
-      // Assert
       expect(result).toEqual(expectedClient);
       expect(mockPrismaService.client.create).toHaveBeenCalledWith({
         data: {
@@ -96,7 +99,6 @@ describe('ClientsService', () => {
 
   describe('createManyClients', () => {
     it('should create multiple clients successfully', async () => {
-      // Arrange
       const clients: CreateClientDto[] = [
         {
           name: 'Client 1',
@@ -121,10 +123,8 @@ describe('ClientsService', () => {
       const expectedResult = { count: 2 };
       mockPrismaService.client.createMany.mockResolvedValue(expectedResult);
 
-      // Act
       const result = await service.createManyClients(clients);
 
-      // Assert
       expect(result).toEqual(expectedResult);
       expect(mockPrismaService.client.createMany).toHaveBeenCalledWith({
         data: expect.arrayContaining([
@@ -144,7 +144,6 @@ describe('ClientsService', () => {
 
   describe('findAll', () => {
     it('should return clients with default pagination when no filters provided', async () => {
-      // Arrange
       const mockClients: Client[] = [
         {
           id: '1',
@@ -174,10 +173,8 @@ describe('ClientsService', () => {
       mockPrismaService.client.findMany.mockResolvedValue(mockClients);
       mockPrismaService.client.count.mockResolvedValue(1);
 
-      // Act
       const result = await service.findAll();
 
-      // Assert
       expect(result.clients).toEqual(mockClients);
       expect(result.total).toBe(1);
       expect(result.page).toBe(API_CONSTANTS.PAGINATION.DEFAULT_PAGE);
@@ -191,15 +188,12 @@ describe('ClientsService', () => {
     });
 
     it('should apply pagination correctly', async () => {
-      // Arrange
       const filters = { page: 2, limit: 10 };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(25);
 
-      // Act
       const result = await service.findAll(filters);
 
-      // Assert
       expect(result.page).toBe(2);
       expect(result.limit).toBe(10);
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
@@ -211,15 +205,12 @@ describe('ClientsService', () => {
     });
 
     it('should filter by assignedSeller', async () => {
-      // Arrange
       const filters = { assignedSeller: 'Seller 1' };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
         where: { assignedSeller: 'Seller 1' },
         skip: 0,
@@ -229,15 +220,12 @@ describe('ClientsService', () => {
     });
 
     it('should filter by industry', async () => {
-      // Arrange
       const filters = { industry: 'Technology' };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { industry: 'Technology' },
@@ -246,15 +234,12 @@ describe('ClientsService', () => {
     });
 
     it('should filter by closed status', async () => {
-      // Arrange
       const filters = { closed: true };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { closed: true },
@@ -263,15 +248,12 @@ describe('ClientsService', () => {
     });
 
     it('should filter by sentiment', async () => {
-      // Arrange
       const filters = { sentiment: 'positive' };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { sentiment: 'positive' },
@@ -280,15 +262,12 @@ describe('ClientsService', () => {
     });
 
     it('should filter by discoverySource', async () => {
-      // Arrange
       const filters = { discoverySource: 'LinkedIn' };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { discoverySource: 'LinkedIn' },
@@ -297,15 +276,12 @@ describe('ClientsService', () => {
     });
 
     it('should search across name, email, and transcription', async () => {
-      // Arrange
       const filters = { search: 'test' };
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
@@ -320,7 +296,6 @@ describe('ClientsService', () => {
     });
 
     it('should apply multiple filters simultaneously', async () => {
-      // Arrange
       const filters = {
         assignedSeller: 'Seller 1',
         industry: 'Technology',
@@ -331,10 +306,8 @@ describe('ClientsService', () => {
       mockPrismaService.client.findMany.mockResolvedValue([]);
       mockPrismaService.client.count.mockResolvedValue(0);
 
-      // Act
       await service.findAll(filters);
 
-      // Assert
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
         where: {
           assignedSeller: 'Seller 1',
@@ -350,7 +323,6 @@ describe('ClientsService', () => {
 
   describe('findOne', () => {
     it('should return a client when found', async () => {
-      // Arrange
       const clientId = '1';
       const mockClient: Client = {
         id: clientId,
@@ -378,10 +350,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.findUnique.mockResolvedValue(mockClient);
 
-      // Act
       const result = await service.findOne(clientId);
 
-      // Assert
       expect(result).toEqual(mockClient);
       expect(mockPrismaService.client.findUnique).toHaveBeenCalledWith({
         where: { id: clientId },
@@ -389,11 +359,9 @@ describe('ClientsService', () => {
     });
 
     it('should throw NotFoundException when client not found', async () => {
-      // Arrange
       const clientId = 'non-existent';
       mockPrismaService.client.findUnique.mockResolvedValue(null);
 
-      // Act & Assert
       await expect(service.findOne(clientId)).rejects.toThrow(NotFoundException);
       await expect(service.findOne(clientId)).rejects.toThrow(
         `Client with ID ${clientId} not found`,
@@ -403,7 +371,6 @@ describe('ClientsService', () => {
 
   describe('updateClient', () => {
     it('should update a client successfully', async () => {
-      // Arrange
       const clientId = '1';
       const updateData = { closed: true };
       const updatedClient: Client = {
@@ -432,10 +399,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.update.mockResolvedValue(updatedClient);
 
-      // Act
       const result = await service.updateClient(clientId, updateData);
 
-      // Assert
       expect(result).toEqual(updatedClient);
       expect(mockPrismaService.client.update).toHaveBeenCalledWith({
         where: { id: clientId },
@@ -445,23 +410,60 @@ describe('ClientsService', () => {
   });
 
   describe('deleteAll', () => {
-    it('should delete all clients successfully', async () => {
-      // Arrange
-      const expectedResult = { count: 5 };
-      mockPrismaService.client.deleteMany.mockResolvedValue(expectedResult);
+    it('should clear all tables successfully', async () => {
+      const mockAnalysisLogsResult = { count: 10 };
+      const mockProcessingBatchesResult = { count: 5 };
+      const mockClientsResult = { count: 100 };
 
-      // Act
+      mockPrismaService.analysisLog.deleteMany.mockResolvedValue(
+        mockAnalysisLogsResult,
+      );
+      mockPrismaService.processingBatch.deleteMany.mockResolvedValue(
+        mockProcessingBatchesResult,
+      );
+      mockPrismaService.client.deleteMany.mockResolvedValue(mockClientsResult);
+
       const result = await service.deleteAll();
 
-      // Assert
-      expect(result).toEqual(expectedResult);
+      expect(result).toEqual({
+        clients: 100,
+        processingBatches: 5,
+        analysisLogs: 10,
+        total: 115,
+      });
+      expect(mockPrismaService.analysisLog.deleteMany).toHaveBeenCalledWith({});
+      expect(
+        mockPrismaService.processingBatch.deleteMany,
+      ).toHaveBeenCalledWith({});
       expect(mockPrismaService.client.deleteMany).toHaveBeenCalledWith({});
+    });
+
+    it('should return zeros when all tables are already empty', async () => {
+      const mockAnalysisLogsResult = { count: 0 };
+      const mockProcessingBatchesResult = { count: 0 };
+      const mockClientsResult = { count: 0 };
+
+      mockPrismaService.analysisLog.deleteMany.mockResolvedValue(
+        mockAnalysisLogsResult,
+      );
+      mockPrismaService.processingBatch.deleteMany.mockResolvedValue(
+        mockProcessingBatchesResult,
+      );
+      mockPrismaService.client.deleteMany.mockResolvedValue(mockClientsResult);
+
+      const result = await service.deleteAll();
+
+      expect(result).toEqual({
+        clients: 0,
+        processingBatches: 0,
+        analysisLogs: 0,
+        total: 0,
+      });
     });
   });
 
   describe('getUnprocessedClients', () => {
     it('should return unprocessed clients', async () => {
-      // Arrange
       const mockClients: Client[] = [
         {
           id: '1',
@@ -490,10 +492,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.findMany.mockResolvedValue(mockClients);
 
-      // Act
       const result = await service.getUnprocessedClients();
 
-      // Assert
       expect(result).toEqual(mockClients);
       expect(mockPrismaService.client.findMany).toHaveBeenCalledWith({
         where: { processed: false },
@@ -503,7 +503,6 @@ describe('ClientsService', () => {
 
   describe('markAsProcessed', () => {
     it('should mark client as processed with categorized data', async () => {
-      // Arrange
       const clientId = '1';
       const categorizedData = {
         industry: 'Technology',
@@ -536,10 +535,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.update.mockResolvedValue(updatedClient);
 
-      // Act
       const result = await service.markAsProcessed(clientId, categorizedData);
 
-      // Assert
       expect(result).toEqual(updatedClient);
       expect(mockPrismaService.client.update).toHaveBeenCalledWith({
         where: { id: clientId },
@@ -554,7 +551,6 @@ describe('ClientsService', () => {
 
   describe('getUniqueValues', () => {
     it('should return unique values for all metadata fields', async () => {
-      // Arrange
       const mockClients = [
         {
           assignedSeller: 'Seller 1',
@@ -584,10 +580,8 @@ describe('ClientsService', () => {
 
       mockPrismaService.client.findMany.mockResolvedValue(mockClients as any);
 
-      // Act
       const result = await service.getUniqueValues();
 
-      // Assert
       expect(result.sellers).toEqual(['Seller 1', 'Seller 2', 'Seller 3']);
       expect(result.industries).toEqual(['Finance', 'Technology']);
       expect(result.sentiments).toEqual(['neutral', 'positive']);
@@ -595,13 +589,10 @@ describe('ClientsService', () => {
     });
 
     it('should return empty arrays when no clients exist', async () => {
-      // Arrange
       mockPrismaService.client.findMany.mockResolvedValue([]);
 
-      // Act
       const result = await service.getUniqueValues();
 
-      // Assert
       expect(result.sellers).toEqual([]);
       expect(result.industries).toEqual([]);
       expect(result.sentiments).toEqual([]);
