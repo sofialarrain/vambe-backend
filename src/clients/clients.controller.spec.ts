@@ -3,12 +3,14 @@ import { BadRequestException } from '@nestjs/common';
 import { ClientsController } from './clients.controller';
 import { ClientsService } from './clients.service';
 import { CsvProcessorService } from './csv-processor.service';
+import { OverviewService } from '../analytics/overview/overview.service';
 import { Client } from '@prisma/client';
 
 describe('ClientsController', () => {
   let controller: ClientsController;
   let clientsService: jest.Mocked<ClientsService>;
   let csvProcessorService: jest.Mocked<CsvProcessorService>;
+  let overviewService: jest.Mocked<OverviewService>;
 
   const mockClientsService = {
     findAll: jest.fn(),
@@ -20,6 +22,10 @@ describe('ClientsController', () => {
 
   const mockCsvProcessorService = {
     parseCsvContent: jest.fn(),
+  };
+
+  const mockOverviewService = {
+    getOverview: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -34,12 +40,17 @@ describe('ClientsController', () => {
           provide: CsvProcessorService,
           useValue: mockCsvProcessorService,
         },
+        {
+          provide: OverviewService,
+          useValue: mockOverviewService,
+        },
       ],
     }).compile();
 
     controller = module.get<ClientsController>(ClientsController);
     clientsService = module.get(ClientsService);
     csvProcessorService = module.get(CsvProcessorService);
+    overviewService = module.get(OverviewService);
   });
 
   afterEach(() => {
@@ -73,17 +84,29 @@ describe('ClientsController', () => {
         },
       ];
 
+      const mockUpdatedMetrics = {
+        totalClients: 101,
+        totalClosed: 40,
+        totalOpen: 61,
+        conversionRate: 39.6,
+        processedClients: 57,
+        unprocessedClients: 44,
+      };
+
       mockCsvProcessorService.parseCsvContent.mockReturnValue(mockClients);
       mockClientsService.createManyClients.mockResolvedValue({ count: 1 });
+      mockOverviewService.getOverview.mockResolvedValue(mockUpdatedMetrics);
 
       const result = await controller.uploadCsv(mockFile);
 
       expect(result).toEqual({
         message: 'CSV uploaded and processed successfully',
         clientsCreated: 1,
+        metrics: mockUpdatedMetrics,
       });
       expect(csvProcessorService.parseCsvContent).toHaveBeenCalledWith(mockFile.buffer.toString('utf-8'));
       expect(clientsService.createManyClients).toHaveBeenCalledWith(mockClients);
+      expect(overviewService.getOverview).toHaveBeenCalledTimes(1);
     });
 
     it('should throw BadRequestException when no file is uploaded', async () => {

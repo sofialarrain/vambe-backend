@@ -15,6 +15,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestj
 import { ClientsService } from './clients.service';
 import { CsvProcessorService } from './csv-processor.service';
 import { ClientFilterDto } from '../common/dto/client.dto';
+import { OverviewService } from '../analytics/overview/overview.service';
 
 @ApiTags('clients')
 @Controller('clients')
@@ -22,6 +23,7 @@ export class ClientsController {
   constructor(
     private readonly clientsService: ClientsService,
     private readonly csvProcessorService: CsvProcessorService,
+    private readonly overviewService: OverviewService,
   ) {}
 
   @Post('upload')
@@ -55,9 +57,12 @@ export class ClientsController {
 
     const result = await this.clientsService.createManyClients(clients);
 
+    const updatedMetrics = await this.overviewService.getOverview();
+
     return {
       message: 'CSV uploaded and processed successfully',
       clientsCreated: result.count,
+      metrics: updatedMetrics,
     };
   }
 
