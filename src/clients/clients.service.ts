@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateClientDto, ClientResponseDto, ClientFilterDto } from '../common/dto/client.dto';
-import { Client } from '@prisma/client';
+import { Client, Prisma } from '@prisma/client';
 import { API_CONSTANTS } from '../common/constants';
 
 @Injectable()
@@ -46,7 +46,7 @@ export class ClientsService {
     const limit = filters.limit || API_CONSTANTS.PAGINATION.DEFAULT_LIMIT;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
+    const where: Prisma.ClientWhereInput = {};
 
     if (filters.assignedSeller) {
       where.assignedSeller = filters.assignedSeller;
@@ -118,7 +118,7 @@ export class ClientsService {
     });
   }
 
-  async markAsProcessed(id: string, categorizedData: any): Promise<Client> {
+  async markAsProcessed(id: string, categorizedData: Prisma.ClientUpdateInput): Promise<Client> {
     return this.prisma.client.update({
       where: { id },
       data: {

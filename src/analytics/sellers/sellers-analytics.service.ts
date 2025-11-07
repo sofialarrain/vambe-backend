@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { getSimulatedCurrentDate, getSimulatedCurrentYear } from '../../common/utils/date.utils';
 import { ANALYTICS_CONSTANTS, API_CONSTANTS } from '../../common/constants';
 import { SellerInsightsGeneratorService } from '../../llm/generators/seller-insights-generator.service';
@@ -71,7 +72,7 @@ export class SellersAnalyticsService {
     weekEndDate.setDate(weekStartDate.getDate() + 7);
     weekEndDate.setHours(23, 59, 59, 999);
 
-    const whereClause: any = {
+    const whereClause: Prisma.ClientWhereInput = {
       meetingDate: {
         gte: weekStartDate,
         lte: weekEndDate,
