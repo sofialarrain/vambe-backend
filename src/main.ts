@@ -28,6 +28,9 @@ async function bootstrap() {
     }),
   );
 
+  // Set global prefix BEFORE Swagger configuration
+  app.setGlobalPrefix('api');
+
   // Swagger/OpenAPI documentation
   const config = new DocumentBuilder()
     .setTitle('Vambe Challenge API')
@@ -39,9 +42,6 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
-
-  // Set global prefix
-  app.setGlobalPrefix('api');
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
