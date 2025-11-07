@@ -48,7 +48,6 @@ describe('ClientsController', () => {
 
   describe('uploadCsv', () => {
     it('should upload and process CSV file successfully', async () => {
-      // Arrange
       const mockFile: Express.Multer.File = {
         fieldname: 'file',
         originalname: 'clients.csv',
@@ -77,10 +76,8 @@ describe('ClientsController', () => {
       mockCsvProcessorService.parseCsvContent.mockReturnValue(mockClients);
       mockClientsService.createManyClients.mockResolvedValue({ count: 1 });
 
-      // Act
       const result = await controller.uploadCsv(mockFile);
 
-      // Assert
       expect(result).toEqual({
         message: 'CSV uploaded and processed successfully',
         clientsCreated: 1,
@@ -90,10 +87,8 @@ describe('ClientsController', () => {
     });
 
     it('should throw BadRequestException when no file is uploaded', async () => {
-      // Arrange
-      const mockFile = undefined;
+      const mockFile = undefined as any;
 
-      // Act & Assert
       await expect(controller.uploadCsv(mockFile)).rejects.toThrow(BadRequestException);
       await expect(controller.uploadCsv(mockFile)).rejects.toThrow('No file uploaded');
       expect(csvProcessorService.parseCsvContent).not.toHaveBeenCalled();
@@ -101,7 +96,6 @@ describe('ClientsController', () => {
     });
 
     it('should throw BadRequestException when file is not CSV', async () => {
-      // Arrange
       const mockFile: Express.Multer.File = {
         fieldname: 'file',
         originalname: 'clients.txt',
@@ -115,7 +109,6 @@ describe('ClientsController', () => {
         stream: null as any,
       };
 
-      // Act & Assert
       await expect(controller.uploadCsv(mockFile)).rejects.toThrow(BadRequestException);
       await expect(controller.uploadCsv(mockFile)).rejects.toThrow('Only CSV files are allowed');
       expect(csvProcessorService.parseCsvContent).not.toHaveBeenCalled();
@@ -125,7 +118,6 @@ describe('ClientsController', () => {
 
   describe('getUniqueValues', () => {
     it('should return unique values successfully', async () => {
-      // Arrange
       const mockUniqueValues = {
         sellers: ['Seller 1', 'Seller 2'],
         industries: ['Technology', 'Finance'],
@@ -135,10 +127,8 @@ describe('ClientsController', () => {
 
       mockClientsService.getUniqueValues.mockResolvedValue(mockUniqueValues);
 
-      // Act
       const result = await controller.getUniqueValues();
 
-      // Assert
       expect(result).toEqual(mockUniqueValues);
       expect(clientsService.getUniqueValues).toHaveBeenCalledTimes(1);
       expect(clientsService.getUniqueValues).toHaveBeenCalledWith();
@@ -147,7 +137,6 @@ describe('ClientsController', () => {
 
   describe('findAll', () => {
     it('should return all clients with default filters', async () => {
-      // Arrange
       const mockClients: Client[] = [
         {
           id: '1',
@@ -183,17 +172,14 @@ describe('ClientsController', () => {
 
       mockClientsService.findAll.mockResolvedValue(mockResponse);
 
-      // Act
       const result = await controller.findAll({});
 
-      // Assert
       expect(result).toEqual(mockResponse);
       expect(clientsService.findAll).toHaveBeenCalledTimes(1);
       expect(clientsService.findAll).toHaveBeenCalledWith({});
     });
 
     it('should return clients with filters applied', async () => {
-      // Arrange
       const filters = {
         seller: 'Seller 1',
         industry: 'Technology',
@@ -211,10 +197,8 @@ describe('ClientsController', () => {
 
       mockClientsService.findAll.mockResolvedValue(mockResponse);
 
-      // Act
       const result = await controller.findAll(filters);
 
-      // Assert
       expect(result).toEqual(mockResponse);
       expect(clientsService.findAll).toHaveBeenCalledWith(filters);
     });
@@ -222,7 +206,6 @@ describe('ClientsController', () => {
 
   describe('findOne', () => {
     it('should return a single client by ID', async () => {
-      // Arrange
       const mockClient: Client = {
         id: 'client-1',
         name: 'Client 1',
@@ -249,10 +232,8 @@ describe('ClientsController', () => {
 
       mockClientsService.findOne.mockResolvedValue(mockClient);
 
-      // Act
       const result = await controller.findOne('client-1');
 
-      // Assert
       expect(result).toEqual(mockClient);
       expect(clientsService.findOne).toHaveBeenCalledWith('client-1');
     });
@@ -260,14 +241,11 @@ describe('ClientsController', () => {
 
   describe('deleteAll', () => {
     it('should delete all clients successfully', async () => {
-      // Arrange
       const mockResult = { count: 10 };
       mockClientsService.deleteAll.mockResolvedValue(mockResult);
 
-      // Act
       const result = await controller.deleteAll();
 
-      // Assert
       expect(result).toEqual(mockResult);
       expect(clientsService.deleteAll).toHaveBeenCalledTimes(1);
       expect(clientsService.deleteAll).toHaveBeenCalledWith();

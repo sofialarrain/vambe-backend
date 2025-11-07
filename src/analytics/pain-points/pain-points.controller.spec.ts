@@ -34,7 +34,6 @@ describe('PainPointsController', () => {
 
   describe('getPainPoints', () => {
     it('should return top pain points successfully', async () => {
-      // Arrange
       const mockPainPoints: PainPointDto[] = [
         {
           painPoint: 'High workload',
@@ -50,10 +49,8 @@ describe('PainPointsController', () => {
 
       mockPainPointsService.getTopPainPoints.mockResolvedValue(mockPainPoints);
 
-      // Act
       const result = await controller.getPainPoints();
 
-      // Assert
       expect(result).toEqual(mockPainPoints);
       expect(result.length).toBe(2);
       expect(result[0].painPoint).toBe('High workload');
@@ -62,13 +59,10 @@ describe('PainPointsController', () => {
     });
 
     it('should return empty array when no pain points available', async () => {
-      // Arrange
       mockPainPointsService.getTopPainPoints.mockResolvedValue([]);
 
-      // Act
       const result = await controller.getPainPoints();
 
-      // Assert
       expect(result).toEqual([]);
       expect(service.getTopPainPoints).toHaveBeenCalledTimes(1);
     });
@@ -76,7 +70,6 @@ describe('PainPointsController', () => {
 
   describe('getTechnicalRequirements', () => {
     it('should return top technical requirements successfully', async () => {
-      // Arrange
       const mockRequirements: TechnicalRequirementDto[] = [
         {
           requirement: 'API integration',
@@ -90,10 +83,8 @@ describe('PainPointsController', () => {
 
       mockPainPointsService.getTopTechnicalRequirements.mockResolvedValue(mockRequirements);
 
-      // Act
       const result = await controller.getTechnicalRequirements();
 
-      // Assert
       expect(result).toEqual(mockRequirements);
       expect(result.length).toBe(2);
       expect(result[0].requirement).toBe('API integration');
@@ -102,13 +93,10 @@ describe('PainPointsController', () => {
     });
 
     it('should return empty array when no technical requirements available', async () => {
-      // Arrange
       mockPainPointsService.getTopTechnicalRequirements.mockResolvedValue([]);
 
-      // Act
       const result = await controller.getTechnicalRequirements();
 
-      // Assert
       expect(result).toEqual([]);
       expect(service.getTopTechnicalRequirements).toHaveBeenCalledTimes(1);
     });
@@ -116,7 +104,6 @@ describe('PainPointsController', () => {
 
   describe('getVolumeVsConversion', () => {
     it('should return volume vs conversion data successfully', async () => {
-      // Arrange
       const mockVolumeData: VolumeVsConversionDto[] = [
         {
           volumeRange: '0-50',
@@ -132,10 +119,8 @@ describe('PainPointsController', () => {
 
       mockPainPointsService.getVolumeVsConversion.mockResolvedValue(mockVolumeData);
 
-      // Act
       const result = await controller.getVolumeVsConversion();
 
-      // Assert
       expect(result).toEqual(mockVolumeData);
       expect(result.length).toBe(2);
       expect(result[0].volumeRange).toBe('0-50');
@@ -144,7 +129,6 @@ describe('PainPointsController', () => {
     });
 
     it('should return all volume ranges even when empty', async () => {
-      // Arrange
       const mockVolumeData: VolumeVsConversionDto[] = [
         {
           volumeRange: '0-50',
@@ -175,10 +159,8 @@ describe('PainPointsController', () => {
 
       mockPainPointsService.getVolumeVsConversion.mockResolvedValue(mockVolumeData);
 
-      // Act
       const result = await controller.getVolumeVsConversion();
 
-      // Assert
       expect(result).toEqual(mockVolumeData);
       expect(result.length).toBe(5);
       expect(service.getVolumeVsConversion).toHaveBeenCalledTimes(1);
