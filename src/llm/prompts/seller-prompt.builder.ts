@@ -8,31 +8,58 @@ export class SellerPromptBuilder {
       total: number;
       closed: number;
       successRate: number;
+      performanceVsAvg?: number;
     }>;
   }): string {
-    const topCorrelations = sellerData.correlations
+    const industryCorrelations = sellerData.correlations
+      .filter(c => c.dimension === 'industry')
+      .sort((a, b) => b.successRate - a.successRate);
+    
+    const otherCorrelations = sellerData.correlations
+      .filter(c => c.dimension !== 'industry')
       .sort((a, b) => b.successRate - a.successRate)
-      .slice(0, 5);
+      .slice(0, 3);
 
-    return `You are a sales performance analyst. Analyze this seller's performance and provide actionable recommendations.
+    const industrySection = industryCorrelations.length > 0
+      ? `\nIndustry Performance (MOST IMPORTANT - focus recommendations here):
+${industryCorrelations.map(c => {
+  const vsAvg = c.performanceVsAvg !== undefined 
+    ? ` (${c.performanceVsAvg > 0 ? '+' : ''}${c.performanceVsAvg.toFixed(0)}% vs average)`
+    : '';
+  return `- ${c.value}: ${c.successRate}% success rate (${c.closed}/${c.total} deals)${vsAvg}`;
+}).join('\n')}`
+      : '\nNote: Limited industry data available for this seller.';
+
+    const otherSection = otherCorrelations.length > 0
+      ? `\nAdditional Context (mention only if relevant to industry recommendations):
+${otherCorrelations.map(c => `- ${c.value} (${c.dimension}): ${c.successRate}% success rate`).join('\n')}`
+      : '';
+
+    return `You are a strategic sales analyst. Your goal is to help the company assign sellers to the RIGHT INDUSTRIES based on their proven strengths.
 
 Seller: ${sellerData.seller}
 
-Overall Metrics:
+Overall Performance:
 - Total Clients: ${sellerData.metrics.total}
 - Closed Deals: ${sellerData.metrics.closed}
 - Conversion Rate: ${sellerData.metrics.conversionRate}%
+${industrySection}${otherSection}
 
-Top Performance Areas:
-${topCorrelations.map(c => `- ${c.value} (${c.dimension}): ${c.successRate}% success rate (${c.closed}/${c.total} deals)`).join('\n')}
+CRITICAL INSTRUCTIONS FOR RECOMMENDATIONS:
+1. **PRIORITIZE INDUSTRIES**: Focus on specific industries where ${sellerData.seller} excels (e.g., "Technology", "Healthcare", "Logistics", "Finance")
+2. **BE SPECIFIC**: Name actual industries from the data above, not generic categories
+3. **AVOID REDUNDANCY**: Do NOT repeat obvious metrics about sentiment, urgency, or volume unless they reveal something unique about industry preferences
+4. **ACTIONABLE ASSIGNMENT**: Help the company understand which industries to assign to ${sellerData.seller} going forward
+5. **INDUSTRY INSIGHTS**: If ${sellerData.seller} shows strength in specific industries, explain WHY (e.g., "demonstrates expertise in technology sector", "excellent at closing logistics companies", "strong in healthcare vertical")
 
-Provide 2-3 specific, actionable recommendations for ${sellerData.seller}. Focus on:
-1. Leveraging their strongest areas
-2. Targeting specific client types where they excel
-3. Specific actions they can take
+Example of GOOD recommendation:
+- "Prioritize assigning ${sellerData.seller} to Technology and Finance industries, where they achieve 85% and 78% conversion rates respectively, significantly above company average. Their expertise in these sectors suggests strong industry knowledge and relationships."
 
-Return ONLY a JSON array of recommendations (strings), no additional text:
-["recommendation 1", "recommendation 2", "recommendation 3"]`;
+Example of BAD recommendation (too generic):
+- "Focus on positive sentiment clients" (this is redundant and not industry-specific)
+
+Return ONLY a JSON array of 2-3 recommendations (strings), each focused on INDUSTRY ASSIGNMENT:
+["recommendation 1 about specific industries", "recommendation 2 about industry strategy", "recommendation 3 if applicable"]`;
   }
 
   static buildCorrelationInsight(
@@ -62,19 +89,56 @@ Return ONLY a JSON array of recommendations (strings), no additional text:
       return `- ${dimensionLabel}: ${corr.value} - ${corr.successRate.toFixed(0)}% success rate (${corr.closed}/${corr.total} deals)${performanceNote}`;
     }).join('\n');
 
-    return `You are a sales analytics expert. Based on the following correlation data for seller "${seller}", write a concise, insightful description (2-3 sentences) that:
+    const industryCorrelations = correlations.filter(c => c.dimension === 'industry');
+    const otherCorrelations = correlations.filter(c => c.dimension !== 'industry');
 
-1. Identifies the seller's key strengths and where they excel
-2. Describes the TYPE of client profile where this seller performs best
-3. Uses natural language, not just numbers
-4. Focuses on actionable insights (e.g., "Boa excels with technology companies that have large operations and planned implementations")
+    let industrySection = '';
+    if (industryCorrelations.length > 0) {
+      const topIndustries = industryCorrelations
+        .sort((a, b) => b.successRate - a.successRate)
+        .slice(0, 3);
+      
+      industrySection = `\nINDUSTRY STRENGTHS (MOST IMPORTANT):
+${topIndustries.map(c => {
+  const vsAvg = c.performanceVsAvg > 0 
+    ? ` (+${c.performanceVsAvg.toFixed(0)}% above average)`
+    : '';
+  return `- ${c.value}: ${c.successRate.toFixed(0)}% success rate (${c.closed}/${c.total} deals)${vsAvg}`;
+}).join('\n')}`;
+    }
 
-Correlation Data:
-${correlationDescriptions}
+    const otherSection = otherCorrelations.length > 0
+      ? `\nAdditional Performance Context:
+${otherCorrelations
+  .sort((a, b) => b.successRate - a.successRate)
+  .slice(0, 2)
+  .map(c => {
+    const dimensionLabel = dimensionLabels[c.dimension] || c.dimension;
+    const vsAvg = c.performanceVsAvg > 0 
+      ? ` (+${c.performanceVsAvg.toFixed(0)}% above average)`
+      : '';
+    return `- ${dimensionLabel}: ${c.value} - ${c.successRate.toFixed(0)}% success rate${vsAvg}`;
+  }).join('\n')}`
+      : '';
 
-Write a natural, conversational description that tells a story about this seller's expertise. Example format: "Boa demonstrates exceptional success with technology companies that operate at a large scale. These clients typically have planned implementations rather than urgent needs, suggesting Boa's strength lies in strategic, long-term sales cycles. With a 100% close rate in this segment, Boa should be prioritized for similar client profiles."
+    return `You are a sales analytics expert. Write a concise, insightful description (2-3 sentences) for seller "${seller}" that PRIORITIZES INDUSTRY EXPERTISE.
 
-Keep it to 2-3 sentences maximum.`;
+${industrySection}${otherSection}
+
+CRITICAL REQUIREMENTS:
+1. **LEAD WITH INDUSTRIES**: Start by identifying which SPECIFIC industries this seller excels in (e.g., "Technology", "Healthcare", "Logistics", "Finance")
+2. **BE SPECIFIC**: Name actual industries from the data above, use industry names explicitly
+3. **EXPLAIN WHY**: If the seller shows strength in certain industries, suggest WHY (e.g., "demonstrates deep expertise in technology sector", "excellent at understanding logistics operations")
+4. **AVOID GENERIC METRICS**: Don't just repeat sentiment, urgency, or volume metrics unless they reveal something unique about industry preferences
+5. **STRATEGIC VALUE**: Help the company understand which industries to assign to this seller
+
+Example of GOOD description:
+"Boa demonstrates exceptional sales performance with Technology and Finance companies, achieving 70-85% success rates in these industries. This seller shows particular strength in understanding the complex needs of technology firms and financial institutions, suggesting deep industry knowledge and the ability to navigate technical requirements effectively."
+
+Example of BAD description (too generic):
+"Boa performs well with positive sentiment clients and medium-sized operations." (this doesn't mention industries)
+
+Write a natural, conversational description focusing on INDUSTRY STRENGTHS. Keep it to 2-3 sentences maximum.`;
   }
 
   static buildTimelineInsight(

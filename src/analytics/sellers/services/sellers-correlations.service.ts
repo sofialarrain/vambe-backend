@@ -274,6 +274,16 @@ export class SellersCorrelationsService {
     const feedbackPromises = sellers.map(async (seller) => {
       const sellerCorrelations = correlations.filter((c) => c.seller === seller.seller);
 
+      // Map correlations to include performanceVsAvg for better AI context
+      const correlationsWithPerformance = sellerCorrelations.map(corr => ({
+        dimension: corr.dimension,
+        value: corr.value,
+        total: corr.total,
+        closed: corr.closed,
+        successRate: corr.successRate,
+        performanceVsAvg: corr.performanceVsAvg,
+      }));
+
       const aiResult = await this.sellerInsightsGenerator.generateSellerFeedback({
         seller: seller.seller,
         metrics: {
@@ -281,7 +291,7 @@ export class SellersCorrelationsService {
           closed: seller.closed,
           conversionRate: seller.conversionRate,
         },
-        correlations: sellerCorrelations,
+        correlations: correlationsWithPerformance,
       });
 
       return {
