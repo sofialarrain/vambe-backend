@@ -1,96 +1,106 @@
-# Integración con Claude AI (Anthropic)
+# Claude AI (Anthropic) Integration
 
-## Visión General
+## Overview
 
-Este documento describe cómo se integra Claude AI en la aplicación para realizar categorización automática de transcripciones de reuniones de ventas.
+This document explains how Vambe’s backend integrates with Anthropic’s Claude models to enrich sales meeting transcripts, generate tailored insights, and keep analytics dashboards up to date.
 
-## ¿Por qué Claude AI?
+## Why Claude AI?
 
-### Ventajas Clave
+1. **Contextual Understanding**  
+   Handles long-form conversations and business nuance without losing track of stakeholders or goals.
 
-1. **Comprensión de Contexto Superior**
-   - Excelente para analizar conversaciones largas
-   - Entiende matices y contexto empresarial
+2. **Structured Output**  
+   Produces JSON-like answers with a low rate of formatting errors, which keeps downstream parsing simple.
 
-2. **Respuestas Estructuradas**
-   - Capaz de responder en formato JSON consistente
-   - Bajo rate de errores de formato
+3. **Developer-Friendly Pricing**  
+   Claude Haiku’s usage-based tier is inexpensive for prototyping and scales gradually with demand.
 
-3. **Free Tier Generoso**
-   - Créditos gratuitos para comenzar
-   - Suficiente para desarrollo y pruebas
+4. **Responsible Behavior**  
+   Lower hallucination rates and more frequent “I’m not sure” answers compared with other providers.
 
-4. **Baja Tasa de Alucinaciones**
-   - Más confiable que otros modelos
-   - Responde "no sé" cuando no está seguro
-
-## Arquitectura de Integración
+## Integration Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│      Backend (NestJS)                   │
-│                                         │
-│  ┌────────────────────────────────┐    │
-│  │  CategorizationService         │    │
-│  │  - processAllUnprocessedClients│    │
-│  │  - processSingleClient         │    │
-│  └────────────┬───────────────────┘    │
-│               │                         │
-│  ┌────────────▼───────────────────┐    │
-│  │  LlmService                    │    │
-│  │  - categorizeTranscription     │    │
-│  │  - buildPrompt                 │    │
-│  │  - parseResponse               │    │
-│  └────────────┬───────────────────┘    │
-│               │                         │
-└───────────────┼─────────────────────────┘
-                │
-                │ HTTP Request
-                ▼
-    ┌─────────────────────────┐
-    │   Anthropic API         │
-    │   (Claude 3.5 Sonnet)   │
-    └─────────────────────────┘
+┌───────────────────────────────────────────────┐
+│                 NestJS Backend                │
+│                                               │
+│  ┌─────────────────────────────────────────┐  │
+│  │ CategorizationService                   │  │
+│  │  - processAllUnprocessedClients()       │  │
+│  │  - processSingleClient()                │  │
+│  └─────────────────────────────┬───────────┘  │
+│                                │              │
+│  ┌─────────────────────────────▼───────────┐  │
+│  │ Insight Generators                     │  │
+│  │  - Seller/Industry/Client analytics    │  │
+│  │  - Timeline & predictions              │  │
+│  └─────────────────────────────┬───────────┘  │
+│                                │              │
+│  ┌─────────────────────────────▼───────────┐  │
+│  │ AnthropicClientService                  │  │
+│  │  - Loads API key                        │  │
+│  │  - Wraps anthropic.messages.create()    │  │
+│  └─────────────────────────────┬───────────┘  │
+└────────────────────────────────┼──────────────┘
+                                 │ HTTPS
+                                 ▼
+                    ┌───────────────────────┐
+                    │ Anthropic Claude API  │
+                    └───────────────────────┘
 ```
 
-## Implementación
+## Implementation
 
-### 1. Configuración del Cliente
+### Client setup
 
 ```typescript
 import Anthropic from '@anthropic-ai/sdk';
 
-export class LlmService {
-  private anthropic: Anthropic;
+@Injectable()
+export class AnthropicClientService {
+  private anthropic: Anthropic | null = null;
 
   constructor(private configService: ConfigService) {
     const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    this.anthropic = new Anthropic({ apiKey });
+    if (apiKey && apiKey !== 'your-api-key-here') {
+      this.anthropic = new Anthropic({ apiKey });
+    } else {
+      this.logger.warn('ANTHROPIC_API_KEY not configured. LLM features will not work.');
+    }
+  }
+
+  isConfigured(): boolean {
+    return this.anthropic !== null;
+  }
+
+  async sendMessage(request: AnthropicMessageRequest): Promise<string> {
+    if (!this.anthropic) {
+      throw new Error('Anthropic API not configured');
+    }
+
+    const response = await this.anthropic.messages.create({
+      model: request.model || LLM_CONSTANTS.DEFAULT_MODEL,
+      max_tokens: request.maxTokens || LLM_CONSTANTS.MAX_TOKENS.DEFAULT,
+      messages: [{ role: 'user', content: request.prompt }],
+    });
+
+    return response.content[0].type === 'text' ? response.content[0].text : '';
   }
 }
 ```
 
-### 2. Modelo Utilizado
+### Model in use
 
-**Modelo:** `claude-3-5-sonnet-20241022`
+- **Default model:** `claude-3-haiku-20240307` (`LLM_CONSTANTS.DEFAULT_MODEL`)
+- Overridable per-call by providing a `model` in the `sendMessage` request.
+- Token budgets are capped by `LLM_CONSTANTS.MAX_TOKENS.*` to keep latency predictable.
 
-**Características:**
-- 200K tokens de contexto
-- Excelente para análisis de texto
-- Balance entre velocidad y calidad
-- Pricing competitivo
+### Prompt engineering
 
-### 3. Prompt Engineering
-
-El prompt está cuidadosamente diseñado para obtener resultados estructurados:
+The categorization prompt guides Claude to emit a strict JSON object:
 
 ```typescript
-private buildCategorizationPrompt(
-  transcription: string,
-  clientName: string,
-  closed: boolean
-): string {
-  return `You are an expert sales analyst. Analyze the following sales meeting transcription and extract key dimensions in JSON format.
+const prompt = `You are an expert sales analyst. Analyze the following sales meeting transcription and extract key dimensions in JSON format.
 
 Client Name: ${clientName}
 Deal Status: ${closed ? 'CLOSED (Won)' : 'NOT CLOSED (Lost/Ongoing)'}
@@ -101,7 +111,6 @@ ${transcription}
 """
 
 Extract and return ONLY a valid JSON object with the following fields (no additional text or explanation):
-
 {
   "industry": "The business sector/industry",
   "operationSize": "small | medium | large",
@@ -115,303 +124,93 @@ Extract and return ONLY a valid JSON object with the following fields (no additi
 }
 
 IMPORTANT: Return ONLY the JSON object, nothing else.`;
-}
 ```
 
-### 4. Estrategia de Parsing
+Each insight generator has its own prompt builder to shape tone (recommendations vs. narrative summaries) and to truncate raw data using `LLM_CONSTANTS.TRANSCRIPTION_TRUNCATE`.
 
-El servicio incluye parsing robusto con validación:
+### Response parsing
+
+Responses are validated through `ResponseParserService`, which extracts the JSON payload, applies defaults, and normalizes enums:
 
 ```typescript
-private parseCategorizationResponse(response: string): CategorizationResult {
-  try {
-    // Extraer JSON del response
-    const jsonMatch = response.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in response');
-    }
+const fallback = { industry: 'Unknown', operationSize: 'medium', ... };
+const parsed = this.responseParser.parseJsonResponse<any>(responseText, fallback);
 
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    // Normalizar y validar
-    return {
-      industry: parsed.industry || 'Unknown',
-      operationSize: this.normalizeOperationSize(parsed.operationSize),
-      interactionVolume: parseInt(parsed.interactionVolume) || 0,
-      // ... más campos con normalización
-    };
-  } catch (error) {
-    this.logger.error('Error parsing response:', error);
-    throw new Error(`Failed to parse LLM response: ${error.message}`);
-  }
-}
+return {
+  industry: parsed.industry || 'Unknown',
+  operationSize: NormalizationUtil.normalizeOperationSize(parsed.operationSize),
+  interactionVolume: parseInt(parsed.interactionVolume) || 0,
+  // ...
+};
 ```
 
-## Dimensiones Extraídas
-
-### 1. Industry (Industria)
-
-**Tipo:** String  
-**Ejemplos:**
-- financial services
-- e-commerce
-- healthcare
-- education
-- logistics
-- consulting
-- technology
-
-**Cómo se extrae:**
-- Análisis de palabras clave en la transcripción
-- Contexto del negocio mencionado
-- Tipo de problemas descritos
-
-### 2. Operation Size (Tamaño de Operación)
-
-**Tipo:** Enum (`small` | `medium` | `large`)  
-**Criterios:**
-- `small`: < 100 interacciones semanales
-- `medium`: 100-250 interacciones semanales
-- `large`: > 250 interacciones semanales
-
-### 3. Interaction Volume (Volumen de Interacciones)
-
-**Tipo:** Number  
-**Descripción:** Número aproximado de interacciones semanales mencionadas
-
-### 4. Discovery Source (Fuente de Descubrimiento)
-
-**Tipo:** String  
-**Ejemplos:**
-- conference
-- recommendation
-- Google search
-- LinkedIn
-- article
-- event
-- webinar
-
-### 5. Main Motivation (Motivación Principal)
-
-**Tipo:** String  
-**Ejemplos:**
-- efficiency
-- scalability
-- personalization
-- integration
-- automation
-- cost reduction
-
-### 6. Urgency Level (Nivel de Urgencia)
-
-**Tipo:** Enum (`immediate` | `planned` | `exploratory`)  
-**Descripción:**
-- `immediate`: Necesidad urgente, buscan implementar pronto
-- `planned`: Tienen timeline definido, evaluando opciones
-- `exploratory`: Investigando, sin urgencia clara
-
-### 7. Pain Points (Puntos de Dolor)
-
-**Tipo:** Array<String>  
-**Ejemplos:**
-- "high workload on support team"
-- "slow response times"
-- "repetitive queries"
-- "scaling issues"
-
-### 8. Technical Requirements (Requerimientos Técnicos)
-
-**Tipo:** Array<String>  
-**Ejemplos:**
-- "multi-language support"
-- "CRM integration"
-- "data confidentiality"
-- "real-time updates"
-- "API access"
-
-### 9. Sentiment (Sentimiento)
-
-**Tipo:** Enum (`positive` | `neutral` | `skeptical`)  
-**Descripción:**
-- `positive`: Entusiasmado, listo para comprar
-- `neutral`: Interesado pero cauteloso
-- `skeptical`: Dudas o preocupaciones
-
-## Rate Limiting y Optimización
-
-### 1. Batch Processing con Delay
-
-```typescript
-for (const client of clients) {
-  await this.processClient(client);
-  await this.sleep(1000); // 1 segundo entre requests
-}
-```
-
-**Razones:**
-- Respetar límites de API
-- Evitar throttling
-- Dar tiempo al modelo para responder
-
-### 2. Manejo de Errores
+When parsing fails the service logs the error and surfaces an exception so the caller can record the failure.
 
-```typescript
-try {
-  const result = await this.llmService.categorize(client);
-  await this.clientsService.markAsProcessed(client.id, result);
-  processed++;
-} catch (error) {
-  this.logger.error(`Failed to process ${client.name}:`, error.message);
-  failed++;
-  // Continuar con el siguiente
-}
-```
+## Extracted dimensions
 
-### 3. Tracking de Procesamiento
+1. **Industry** (`string`) – Derived from sector keywords and business context.  
+   Example values: `financial services`, `e-commerce`, `healthcare`.
 
-```typescript
-// Campo en DB
-processed: Boolean
-processedAt: DateTime
+2. **Operation size** (`small | medium | large`) – Heuristic mapping based on interaction volume hints shared during the call.
 
-// Permite:
-// - Ver qué clientes faltan procesar
-// - Reprocesar si es necesario
-// - Auditoría de cuándo se procesó
-```
+3. **Interaction volume** (`number`) – Approximate weekly contact volume referenced in the transcript.
 
-## Costos y Consideraciones
+4. **Discovery source** (`string`) – How the prospect heard about Vambe (e.g., `conference`, `referral`, `LinkedIn`).
 
-### Pricing (aproximado)
+5. **Main motivation** (`string`) – Primary reason the prospect is evaluating Vambe (`efficiency`, `automation`, `cost reduction`, etc.).
 
-**Claude 3.5 Sonnet:**
-- Input: $3 / 1M tokens
-- Output: $15 / 1M tokens
+6. **Urgency level** (`immediate | planned | exploratory`) – Captures timeline expectations voiced during the conversation.
 
-**Para este proyecto (61 clientes):**
-- Promedio ~500 tokens input por transcripción
-- Promedio ~200 tokens output por respuesta
-- Total: ~30,500 input + ~12,200 output tokens
-- **Costo estimado: ~$0.27 USD** (muy bajo)
+7. **Pain points** (`string[]`) – List of concrete problems the prospect wants to solve.
 
-### Free Tier
+8. **Technical requirements** (`string[]`) – Integration or compliance must-haves, like `CRM integration` or `data residency`.
 
-Anthropic ofrece **$5 USD en créditos gratuitos**, suficiente para:
-- ~18,000 procesamiento de clientes de este tipo
-- Desarrollo y pruebas extensivas
+9. **Sentiment** (`positive | neutral | skeptical`) – Claude’s read on the buyer’s attitude toward the solution.
 
-## Mejores Prácticas
+## Processing workflow and safeguards
 
-### 1. Prompt Engineering
+- **Batch pacing:** `CategorizationService.processAllUnprocessedClients()` sleeps for 1 second between requests to respect rate limits.
+- **Fallback defaults:** Normalized results always supply sensible defaults to keep database writes consistent.
+- **Cache refresh:** When AI enrichment succeeds, `CacheService.clearAnalyticsCache()` invalidates Redis so dashboards pick up fresh metrics on the next request.
+- **Error handling:** Failures are logged with the client name, the record stays flagged as unprocessed, and processing continues with the next client.
 
-✅ **Hacer:**
-- Ser específico en las instrucciones
-- Pedir formato JSON explícitamente
-- Incluir ejemplos cuando sea necesario
-- Usar "IMPORTANT" para instrucciones críticas
+## Anthropic API calls in the codebase
 
-❌ **Evitar:**
-- Prompts ambiguos
-- Demasiadas instrucciones a la vez
-- Esperar perfección sin ejemplos
+1. **`CategorizationService.categorizeTranscription`** – Sends the full meeting transcript and retrieves structured client attributes.  
+   Path: `src/llm/categorization.service.ts`
 
-### 2. Validación de Respuestas
+2. **`SellerInsightsGeneratorService.generateSellerFeedback`** – Asks Claude for bullet recommendations for a seller based on performance stats.  
+   Path: `src/llm/generators/seller-insights-generator.service.ts`
 
-✅ **Hacer:**
-- Siempre validar el JSON parseado
-- Tener valores por defecto
-- Normalizar respuestas (lowercase, trim)
-- Loguear errores para debugging
+3. **`SellerInsightsGeneratorService.generateSellerCorrelationInsight`** – Requests a short narrative explaining which segments work best for a seller.  
+   Path: `src/llm/generators/seller-insights-generator.service.ts`
 
-❌ **Evitar:**
-- Confiar ciegamente en el output
-- No manejar casos edge
-- Fallar silenciosamente
+4. **`SellerInsightsGeneratorService.generateSellerTimelineInsight`** – Summarizes seller momentum over a selected period.  
+   Path: `src/llm/generators/seller-insights-generator.service.ts`
 
-### 3. Error Handling
+5. **`PredictionsGeneratorService.generateWinProbability`** (called inside `generateConversionPredictions`) – Obtains a quick probability-style summary per client cohort.  
+   Path: `src/llm/generators/predictions-generator.service.ts`
 
-✅ **Hacer:**
-- Try-catch en todas las llamadas a API
-- Reintentos con backoff exponencial
-- Logging detallado
-- Notificar al usuario de errores
+6. **`IndustryInsightsGeneratorService.generateDistributionInsight`** – Produces a narrative about how industries are distributed in the pipeline.  
+   Path: `src/llm/generators/industry-insights-generator.service.ts`
 
-❌ **Evitar:**
-- Dejar que errores propaguen sin control
-- No loguear contexto del error
-- Bloquear la aplicación por un error
+7. **`IndustryInsightsGeneratorService.generateConversionInsight`** – Explains which industries convert best and why.  
+   Path: `src/llm/generators/industry-insights-generator.service.ts`
 
-## Alternativas Consideradas
+8. **`ClientInsightsGeneratorService.generatePerceptionSummary`** – Summarizes how clients perceive Vambe post-meeting.  
+   Path: `src/llm/generators/client-insights-generator.service.ts`
 
-### GPT-4 (OpenAI)
+9. **`ClientInsightsGeneratorService.generateSolutionIdeas`** – Suggests custom follow-up ideas for a set of clients.  
+   Path: `src/llm/generators/client-insights-generator.service.ts`
 
-**Pros:**
-- Muy popular y documentado
-- Excelente calidad de respuestas
+10. **`AnalyticsInsightsGeneratorService.generatePainPointInsight`** – Highlights dominant pain points and how they impact conversions.  
+    Path: `src/llm/generators/analytics-insights-generator.service.ts`
 
-**Contras:**
-- Free tier más limitado
-- Más caro en producción
-- Mayor latencia
+11. **`AnalyticsInsightsGeneratorService.generateVolumeVsConversionInsight`** – Describes trends between meeting volume and closing rates.  
+    Path: `src/llm/generators/analytics-insights-generator.service.ts`
 
-### Gemini (Google)
+12. **`AnalyticsInsightsGeneratorService.generateTimelineInsight`** – Builds a narrative timeline across time buckets for sales performance.  
+    Path: `src/llm/generators/analytics-insights-generator.service.ts`
 
-**Pros:**
-- Free tier generoso
-- Buena integración con Google Cloud
-
-**Contras:**
-- Menos consistente con JSON
-- Menos madurez del SDK
-
-### LLaMA (Open Source)
-
-**Pros:**
-- Gratis para usar
-- Control total
-
-**Contras:**
-- Requiere infraestructura propia
-- Menor calidad que modelos comerciales
-- Más complejo de mantener
-
-## Futuras Mejoras
-
-### 1. Caching de Resultados
-
-```typescript
-// Cachear resultados para transcripciones idénticas
-const cacheKey = hash(transcription);
-if (cache.has(cacheKey)) {
-  return cache.get(cacheKey);
-}
-```
-
-### 2. Fine-tuning
-
-- Entrenar un modelo específico para Vambe
-- Mejorar precisión en categorías específicas
-- Reducir costos a largo plazo
-
-### 3. Streaming de Respuestas
-
-```typescript
-// Para UX en tiempo real
-const stream = await this.anthropic.messages.stream({...});
-for await (const chunk of stream) {
-  // Actualizar UI progresivamente
-}
-```
-
-### 4. Análisis Multi-paso
-
-```typescript
-// Paso 1: Extraer categorías básicas
-// Paso 2: Análisis profundo de sentimiento
-// Paso 3: Recomendaciones personalizadas
-```
-
----
-
-Esta integración demuestra uso profesional de IA en producción, balanceando **calidad**, **costo** y **confiabilidad**.
+Each method delegates to `AnthropicClientService.sendMessage`, ensuring consistent configuration, logging, and error handling across all Claude interactions.
 

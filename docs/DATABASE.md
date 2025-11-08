@@ -2,13 +2,13 @@
 
 ## Overview
 
-La aplicación utiliza PostgreSQL como base de datos principal con Prisma como ORM para type-safety y migraciones automáticas.
+The application uses PostgreSQL as the primary database, with Prisma providing type safety and automated migrations.
 
 ## Schema Diagram
 
 ```
 ┌─────────────────────────────────────────┐
-│              clients                    │
+│               clients                   │
 ├─────────────────────────────────────────┤
 │ id                    UUID (PK)         │
 │ name                  String            │
@@ -19,7 +19,7 @@ La aplicación utiliza PostgreSQL como base de datos principal con Prisma como O
 │ closed                Boolean           │
 │ transcription         Text              │
 │                                         │
-│ // LLM-extracted fields                │
+│ // Fields enriched by the LLM           │
 │ industry              String?           │
 │ operationSize         String?           │
 │ interactionVolume     Int?              │
@@ -38,7 +38,7 @@ La aplicación utiliza PostgreSQL como base de datos principal con Prisma como O
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
-│       processing_batches                │
+│           processing_batches            │
 ├─────────────────────────────────────────┤
 │ id                    UUID (PK)         │
 │ fileName              String            │
@@ -51,7 +51,7 @@ La aplicación utiliza PostgreSQL como base de datos principal con Prisma como O
 └─────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────┐
-│         analysis_logs                   │
+│             analysis_logs               │
 ├─────────────────────────────────────────┤
 │ id                    UUID (PK)         │
 │ clientId              String            │
@@ -65,33 +65,33 @@ La aplicación utiliza PostgreSQL como base de datos principal con Prisma como O
 
 ### Client
 
-**Purpose:** Almacena información de clientes y sus categorías extraídas por IA.
+**Purpose:** Stores customer data and the categories extracted by the AI enrichment pipeline.
 
 **Fields:**
 
-| Field                 | Type      | Description                              |
-|-----------------------|-----------|------------------------------------------|
-| id                    | UUID      | Primary key                              |
-| name                  | String    | Nombre del cliente                       |
-| email                 | String    | Email (único)                            |
-| phone                 | String    | Número de teléfono                       |
-| assignedSeller        | String    | Vendedor asignado                        |
-| meetingDate           | DateTime  | Fecha de la reunión                      |
-| closed                | Boolean   | Si se cerró la venta                     |
-| transcription         | Text      | Transcripción completa                   |
-| industry              | String?   | Industria (extraído por IA)              |
-| operationSize         | String?   | Tamaño: small/medium/large               |
-| interactionVolume     | Int?      | Volumen de interacciones semanales       |
-| discoverySource       | String?   | Cómo descubrieron Vambe                  |
-| mainMotivation        | String?   | Motivación principal                     |
-| urgencyLevel          | String?   | Urgencia: immediate/planned/exploratory  |
-| painPoints            | String[]  | Array de pain points                     |
-| technicalRequirements | String[]  | Array de requerimientos técnicos         |
-| sentiment             | String?   | Sentimiento: positive/neutral/skeptical  |
-| processed             | Boolean   | Si fue procesado por IA                  |
-| processedAt           | DateTime? | Cuándo se procesó                        |
-| createdAt             | DateTime  | Fecha de creación                        |
-| updatedAt             | DateTime  | Última actualización                     |
+| Field                 | Type      | Description                                   |
+|-----------------------|-----------|-----------------------------------------------|
+| id                    | UUID      | Primary key                                   |
+| name                  | String    | Client name                                   |
+| email                 | String    | Email (unique)                                |
+| phone                 | String    | Phone number                                  |
+| assignedSeller        | String    | Seller assigned to the account                |
+| meetingDate           | DateTime  | Date of the sales meeting                     |
+| closed                | Boolean   | Whether the deal was closed                   |
+| transcription         | Text      | Full meeting transcription                    |
+| industry              | String?   | Industry inferred by the LLM                  |
+| operationSize         | String?   | Size: small / medium / large                  |
+| interactionVolume     | Int?      | Weekly interaction volume                     |
+| discoverySource       | String?   | How the client discovered Vambe               |
+| mainMotivation        | String?   | Main motivation for exploring Vambe           |
+| urgencyLevel          | String?   | Urgency: immediate / planned / exploratory    |
+| painPoints            | String[]  | List of stated pain points                    |
+| technicalRequirements | String[]  | List of stated technical requirements         |
+| sentiment             | String?   | Sentiment: positive / neutral / skeptical     |
+| processed             | Boolean   | Indicates whether the record was enriched     |
+| processedAt           | DateTime? | Timestamp of the last enrichment              |
+| createdAt             | DateTime  | Creation timestamp                            |
+| updatedAt             | DateTime  | Last update timestamp                         |
 
 **Indexes:**
 
@@ -104,47 +104,47 @@ La aplicación utiliza PostgreSQL como base de datos principal con Prisma como O
 
 ### ProcessingBatch
 
-**Purpose:** Tracking de procesamiento por lotes de CSV.
+**Purpose:** Tracks CSV batch processing jobs and their outcomes.
 
 **Fields:**
 
-| Field            | Type      | Description                    |
-|------------------|-----------|--------------------------------|
-| id               | UUID      | Primary key                    |
-| fileName         | String    | Nombre del archivo CSV         |
-| totalClients     | Int       | Total de clientes en el lote   |
-| processedClients | Int       | Clientes procesados            |
-| status           | String    | Estado del procesamiento       |
-| errorMessage     | Text?     | Mensaje de error si falló      |
-| startedAt        | DateTime  | Inicio del procesamiento       |
-| completedAt      | DateTime? | Fin del procesamiento          |
+| Field            | Type      | Description                              |
+|------------------|-----------|------------------------------------------|
+| id               | UUID      | Primary key                              |
+| fileName         | String    | Uploaded CSV file name                   |
+| totalClients     | Int       | Number of records in the batch           |
+| processedClients | Int       | Number of records successfully processed |
+| status           | String    | Current processing status                |
+| errorMessage     | Text?     | Error message when the batch fails       |
+| startedAt        | DateTime  | Processing start time                    |
+| completedAt      | DateTime? | Processing completion time               |
 
 **Status Values:**
-- `pending`: Esperando procesamiento
-- `processing`: En proceso
-- `completed`: Completado exitosamente
-- `failed`: Falló
+- `pending`: Waiting to be processed
+- `processing`: Currently being processed
+- `completed`: Successfully completed
+- `failed`: Failed during processing
 
 ### AnalysisLog
 
-**Purpose:** Auditoría de análisis y operaciones.
+**Purpose:** Provides an audit trail of analytical and AI operations.
 
 **Fields:**
 
-| Field      | Type     | Description                    |
-|------------|----------|--------------------------------|
-| id         | UUID     | Primary key                    |
-| clientId   | String   | ID del cliente relacionado     |
-| action     | String   | Tipo de acción                 |
-| result     | JSON     | Resultado del análisis         |
-| executedAt | DateTime | Cuándo se ejecutó              |
+| Field      | Type     | Description                         |
+|------------|----------|-------------------------------------|
+| id         | UUID     | Primary key                         |
+| clientId   | String   | Related client identifier           |
+| action     | String   | Type of analysis or operation       |
+| result     | JSON     | Structured payload with the output  |
+| executedAt | DateTime | Timestamp of the executed action    |
 
 **Action Types:**
-- `categorization`: Categorización por IA
-- `prediction`: Predicción de conversión
-- `comparison`: Comparación de clientes
+- `categorization`: AI-generated client categorization
+- `prediction`: Conversion prediction output
+- `comparison`: Comparative analytics between clients
 
-## Queries Comunes
+## Common Queries
 
 ### Get All Clients with Filters
 
@@ -177,7 +177,7 @@ const clients = await prisma.client.groupBy({
   },
 });
 
-// Luego calcular closed por industria
+// Post-process to compute closed deals per industry
 for (const group of clients) {
   const closed = await prisma.client.count({
     where: {
@@ -185,7 +185,7 @@ for (const group of clients) {
       closed: true,
     },
   });
-  
+
   const conversionRate = (closed / group._count.id) * 100;
 }
 ```
@@ -193,7 +193,7 @@ for (const group of clients) {
 ### Top Pain Points
 
 ```typescript
-// Obtener todos los clientes procesados
+// Fetch all processed clients that contain pain points
 const clients = await prisma.client.findMany({
   where: {
     processed: true,
@@ -205,7 +205,7 @@ const clients = await prisma.client.findMany({
   },
 });
 
-// Agregar en aplicación (Prisma no soporta array aggregation directamente)
+// Aggregate in application code (Prisma cannot aggregate arrays natively)
 const painPointMap = new Map();
 for (const client of clients) {
   for (const point of client.painPoints) {
@@ -247,79 +247,12 @@ npx prisma generate
 
 ## Prisma Studio
 
-Para visualizar y editar datos:
+To visualize and edit the data locally:
 
 ```bash
 npx prisma studio
 ```
 
-Abre en: http://localhost:5555
+Opens at: http://localhost:5555
 
-## Performance Considerations
-
-### Indexes
-
-Campos indexados para queries rápidas:
-- `assignedSeller` - Filtrado por vendedor
-- `industry` - Filtrado por industria
-- `closed` - Filtrado por estado
-- `meetingDate` - Ordenamiento temporal
-
-### Array Fields
-
-`painPoints` y `technicalRequirements` son arrays PostgreSQL:
-- Uso de `@default([])` para evitar nulls
-- Queries con `isEmpty`, `has`, etc.
-
-### Text vs String
-
-`transcription` usa `@db.Text` para soportar textos largos sin límite de caracteres.
-
-## Backup and Restore
-
-### Backup
-
-```bash
-docker exec vambe-postgres pg_dump -U vambe vambe_db > backup.sql
-```
-
-### Restore
-
-```bash
-docker exec -i vambe-postgres psql -U vambe vambe_db < backup.sql
-```
-
-## Connection Pooling
-
-Para producción, usar connection pooling:
-
-```typescript
-// En Prisma
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  // Para producción con pooling
-  // relationMode = "prisma"
-}
-```
-
-## Security
-
-### Connection String
-
-```env
-# Nunca commitear al repo
-DATABASE_URL="postgresql://user:password@host:port/database?schema=public"
-```
-
-### Best Practices
-
-1. **Never log sensitive data**
-2. **Use environment variables**
-3. **SSL in production**: `?sslmode=require`
-4. **Least privilege**: DB user con permisos mínimos necesarios
-
----
-
-Este schema está diseñado para **escalabilidad** y **performance**, con todas las herramientas necesarias para analytics avanzado.
 

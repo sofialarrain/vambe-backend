@@ -31,7 +31,8 @@ Create a `.env` file in the backend directory:
 DATABASE_URL="postgresql://vambe:vambe_password@localhost:5432/vambe_db?schema=public"
 
 # Anthropic Claude API
-ANTHROPIC_API_KEY="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"
+# Replace with your real key before running the app
+ANTHROPIC_API_KEY="your-anthropic-api-key"
 
 # Application
 PORT=3001
@@ -168,18 +169,36 @@ npm run test:cov
 
 View detailed HTML report: `coverage/lcov-report/index.html`
 
-**Current Coverage**: 77%+ (334 tests passing)
-
 ## Project Structure
 
 ```
 src/
-├── analytics/          # Analytics services and controllers
-├── clients/            # Client management
-├── llm/               # AI/LLM services (categorization, insights)
-├── prisma/            # Prisma service
-├── common/            # Shared utilities, DTOs, constants, filters
-└── main.ts           # Application entry point
+├── main.ts                # Bootstrap & global Nest configuration
+├── app.module.ts          # Root module wiring shared infrastructure
+├── common/                # Cross-cutting concerns
+│   ├── constants/         # Token limits, cache keys, API limits
+│   ├── dto/               # Shared request/response contracts
+│   ├── interceptors/      # Logging & caching
+│   └── services/          # Cache service, parsing helpers
+├── clients/               # CSV ingestion & client CRUD
+│   ├── clients.controller.ts
+│   ├── clients.service.ts
+│   └── csv-processor.service.ts
+├── analytics/             # Sales analytics modules
+│   ├── analytics.module.ts
+│   ├── insights/          # Timeline & AI-powered insights
+│   │   ├── insights.controller.ts
+│   │   └── services/...
+│   ├── pain-points/       # Pain point aggregation endpoints
+│   ├── sellers/           # Seller performance analytics
+│   └── overview/          # Dashboard metrics
+├── llm/                   # Claude integration & AI workflows
+│   ├── core/              # Anthropic client wrapper & response parser
+│   ├── prompts/           # Prompt builders shared by generators
+│   ├── generators/        # Seller, industry, client, analytics insights
+│   └── categorization.service.ts  # Transcript enrichment pipeline
+├── prisma/                # Prisma module/service singletons
+└── app.controller.ts      # Health check and base routes
 ```
 
 ## Scripts

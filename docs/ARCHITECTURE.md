@@ -1,375 +1,116 @@
-# Arquitectura del Sistema - Vambe Analytics
+# System Architecture
 
-## Visión General
+## Overview
+Vambe Analytics is a NestJS/PostgreSQL backend focused on sales analytics. The system ingests raw client data (CSV uploads), enriches it using Anthropic Claude, and exposes aggregated analytics through a REST API. The architecture favors clear domain separation (Clients, Analytics, LLM) and pushes heavy data crunching down to PostgreSQL via Prisma.
 
-Vambe Analytics es una aplicación full-stack diseñada con una arquitectura moderna de tres capas que separa claramente las responsabilidades entre presentación, lógica de negocio y persistencia de datos.
-
-## Diagrama de Arquitectura
-
+## High-Level Architecture Diagram
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    FRONTEND (Next.js 14)                │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐ │
-│  │  Dashboard  │  │   Clients    │  │   Analytics   │ │
-│  │    Page     │  │     Page     │  │     Page      │ │
-│  └─────────────┘  └──────────────┘  └───────────────┘ │
-│          │                │                  │          │
-│  ┌───────────────────────────────────────────────────┐ │
-│  │         Components (shadcn/ui + Custom)          │ │
-│  └───────────────────────────────────────────────────┘ │
-│          │                                              │
-│  ┌───────────────────────────────────────────────────┐ │
-│  │              API Client (Axios)                   │ │
-│  └───────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────┘
-                           │
-                    HTTP REST API
-                           │
-┌─────────────────────────────────────────────────────────┐
-│                  BACKEND (NestJS)                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐ │
-│  │   Clients    │  │     LLM      │  │  Analytics   │ │
-│  │   Module     │  │   Module     │  │   Module     │ │
-│  └──────────────┘  └──────────────┘  └──────────────┘ │
-│         │                 │                  │          │
-│  ┌─────────────────────────────────────────────────┐  │
-│  │           Prisma ORM (Type-safe DB)             │  │
-│  └─────────────────────────────────────────────────┘  │
-│         │                                               │
-└─────────────────────────────────────────────────────────┘
-          │                          │
-   PostgreSQL                 Anthropic Claude API
-  (Docker Container)          (External Service)
-```
+┌───────────────────────────────┐
+│           Frontend            │
+│       (Web Dashboard UI)      │
+└───────────────┬───────────────┘
+                │ REST / HTTPS
+                ▼
+┌─────────────────────────────────────────────┐
+│                NestJS API                   │
+│  ┌───────────────────────────────────────┐  │
+│  │            Clients Module             │  │
+│  │  - CSV ingestion & validation         │  │
+│  │  - Client metrics responses           │  │
+│  └───────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────┐  │
+│  │           Analytics Module            │  │
+│  │  - Aggregated SQL queries             │  │
+│  │  - Insights REST endpoints            │  │
+│  └───────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────┐  │
+│  │              LLM Module               │  │
+│  │  - Prompt building & dispatch         │  │
+│  │  - Enrichment persistence             │  │
+│  └───────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────┐  │
+│  │     Shared Infrastructure Layer       │  │
+│  │  (Prisma, ConfigService, DTOs, Logger)│  │
+│  └───────────────────────────────────────┘  │
+└───────────────────────┬─────────────────────┘
+                        │
+         ┌──────────────┴───────────────┐
+         │                              │
+         ▼                              ▼
+┌──────────────────┐        ┌──────────────────────┐
+│   PostgreSQL DB   │        │  Anthropic Claude    │
+│ (Clients, Logs,   │        │   Enrichment API     │
+│  ProcessingBatch) │        └──────────────────────┘
+└──────────────────┘
 
-## Capas de la Aplicación
-
-### 1. Capa de Presentación (Frontend)
-
-**Tecnologías:**
-- Next.js 14 con App Router
-- React 18
-- TailwindCSS + shadcn/ui
-- Recharts para visualizaciones
-- TypeScript
-
-**Responsabilidades:**
-- Renderizado de UI
-- Gestión de estado local
-- Interacción con el usuario
-- Visualización de datos
-
-**Estructura:**
-```
-frontend/
-├── app/                    # Páginas (App Router)
-│   ├── page.tsx           # Dashboard principal
-│   ├── clients/           # Gestión de clientes
-│   ├── analytics/         # Análisis avanzado
-│   └── layout.tsx         # Layout global
-├── components/            # Componentes reutilizables
-│   ├── ui/               # Componentes shadcn/ui
-│   ├── kpi-card.tsx      # KPI Cards
-│   ├── clients-table.tsx # Tabla de clientes
-│   └── navigation.tsx    # Navegación
-└── lib/                   # Utilidades y API client
-    ├── api.ts            # Cliente HTTP
-    ├── types.ts          # Definiciones de tipos
-    └── utils.ts          # Funciones auxiliares
+Observability: NestJS Logger + `AnalysisLog` records capture operational events.
 ```
 
-### 2. Capa de Aplicación (Backend)
+## Components and Responsibilities
+### Clients Module
+- REST endpoints to upload CSV files, list/filter clients, fetch metadata.
+- `CsvProcessorService` validates/normalizes CSV structure and maps columns to `CreateClientDto`.
+- `ClientsService` handles all DB access (via Prisma). `createMany` uses `skipDuplicates: true` and an email unique constraint to avoid duplicate rows when the same CSV is uploaded twice. The `deleteAll` operation clears `clients`, `processing_batches` and `analysis_logs` in one shot and logs the counts removed.
+- Returns updated overview metrics (`totalClients`, `processedClients`, `unprocessedClients`, etc.) so the frontend can refresh dashboards immediately without re-fetching.
 
-**Tecnologías:**
-- NestJS (Node.js Framework)
-- TypeScript
-- Prisma ORM
-- class-validator para DTOs
-- Anthropic SDK
+### Analytics Module
+- REST endpoints under `/api/analytics/*`: pain points, conversion timeline, sellers, insights, etc.
+- Heavy use of raw SQL via `Prisma.$queryRaw`. Key queries leverage `unnest`, `CASE WHEN`, `DATE_TRUNC`, and window-like aggregations to avoid loading large datasets into Node.js.
+- Each service maps raw query results to DTOs for type safety and consistent API responses.
 
-**Responsabilidades:**
-- Lógica de negocio
-- Validación de datos
-- Procesamiento con IA
-- Cálculo de métricas
-- API RESTful
+### LLM Module
+- Orchestrates all interactions with Anthropic Claude.
+- `CategorizationService`
+  - Fetches unprocessed clients, generates prompts, sends them to Claude, and normalizes responses (industry, operation size, pain points, sentiment...).
+  - Rate-limits calls with a simple `sleep(1000)` to respect the free tier.
+  - Persists enriched data via `ClientsService.markAsProcessed`.
+  - Logs outcomes (processed vs failed) for traceability.
+- Additional generators produce AI insights for sellers and future conversions (used by analytics endpoints).
 
-**Estructura:**
+### Shared Infrastructure
+- `PrismaModule` exposes a singleton `PrismaService` used by all modules.
+- DTOs with `class-validator` provide input validation and transformation.
+- `main.ts` wires global config, CORS (restricted to frontend origin), validation pipe (whitelist + implicit conversion), and Swagger docs.
+- Feature-specific utilities (CSV parsing, prompt builders, date helpers) live alongside the owning module to keep the dependency graph shallow.
+
+## Data Model (Prisma)
+- `Client`: core entity storing contact info, AI-derived attributes, `processed` flag, timestamps.
+- `ProcessingBatch`: optional tracking for bulk imports (useful for audits/reporting).
+- `AnalysisLog`: JSON payloads describing analytical/AI operations for future traceability.
+Indices exist on common filters (`assignedSeller`, `industry`, `closed`, `meetingDate`). Email is unique.
+
+## Key Architectural Decisions
+1. **REST + Prisma** instead of GraphQL/TypeORM for simplicity, strong type-safety, and better developer experience (generated client, Prisma Studio).
+2. **SQL-first aggregations** (raw queries) to keep runtime predictable with large datasets.
+3. **Duplicate control** based on unique email; the service vetoes repeated uploads automatically.
+4. **Redis cache** fronts hot analytics endpoints so dashboards load instantly; cache invalidation piggybacks on CSV uploads and LLM enrichment events.
+
+## Data Flows
+1. **CSV Upload** → `POST /api/clients/upload` → parse & insert → return updated metrics.
+2. **LLM Categorization** → `POST /api/llm/process-all` → fetch unprocessed clients → prompt Claude → update `Client` records.
+3. **Analytics Queries** → `/api/analytics/...` → Prisma raw SQL → aggregate JSON response.
+
+### Sequence: CSV Upload to Insight
 ```
-backend/
-├── src/
-│   ├── clients/          # Módulo de clientes
-│   │   ├── clients.controller.ts
-│   │   ├── clients.service.ts
-│   │   ├── clients.module.ts
-│   │   └── csv-processor.service.ts
-│   ├── llm/              # Módulo de IA
-│   │   ├── llm.controller.ts
-│   │   ├── llm.service.ts
-│   │   ├── categorization.service.ts
-│   │   └── llm.module.ts
-│   ├── analytics/        # Módulo de analytics
-│   │   ├── analytics.controller.ts
-│   │   ├── analytics.service.ts
-│   │   └── analytics.module.ts
-│   ├── prisma/           # Configuración Prisma
-│   │   ├── prisma.module.ts
-│   │   └── prisma.service.ts
-│   ├── common/           # Código compartido
-│   │   └── dto/         # Data Transfer Objects
-│   ├── app.module.ts     # Módulo raíz
-│   └── main.ts          # Punto de entrada
-└── prisma/
-    └── schema.prisma     # Schema de DB
-```
-
-### 3. Capa de Datos (Base de Datos)
-
-**Tecnología:** PostgreSQL 16
-
-**Modelos Principales:**
-
-1. **Client**: Información del cliente y categorías
-2. **ProcessingBatch**: Tracking de procesamiento
-3. **AnalysisLog**: Logs de análisis
-
-## Flujo de Datos
-
-### Flujo 1: Carga de CSV
-
-```
-Usuario → Frontend → Backend API → CSV Parser
-                                        ↓
-                                  Prisma ORM
-                                        ↓
-                                  PostgreSQL
+Frontend UI            NestJS API         Clients Service      Prisma DB        LLM Service        Anthropic
+     |                     |                     |                  |                |                 |
+1. Upload CSV  ----------> |                     |                  |                |                 |
+     |                2. parse/validate --------> |                  |                |                 |
+     |                     |                3. createMany --------->|                |                 |
+     |                     |                4. metrics <------------|                |                 |
+5. metrics <-------------- |                     |                  |                |                 |
+     |                6. trigger process --------> |                  |                |                 |
+     |                     |                     |             7. fetch pending <----|                 |
+     |                     |                     |                  |            8. prompt ----------->|
+     |                     |                     |                  |                |            9. JSON
+     |                     |                     |             10. persist updates ->|                 |
+     |                     |                11. report <---------|                  |                 |
+12. insights refresh <-----|                     |                  |                |                 |
 ```
 
-### Flujo 2: Procesamiento con IA
+## Testing & Operations
+- Unit tests across clients, analytics, LLM (Jest).
+- Environment configuration via `.env`; DTO validation guards inputs.
+- Logging with NestJS `Logger` for operational insights.
 
-```
-Backend → Get Unprocessed Clients → Prisma → PostgreSQL
-   ↓
-Claude AI Service
-   ↓
-Categorization (Industry, Sentiment, etc.)
-   ↓
-Update Client → Prisma → PostgreSQL
-```
-
-### Flujo 3: Visualización de Métricas
-
-```
-Frontend → API Request → Backend Analytics Service
-                              ↓
-                         Prisma Aggregations
-                              ↓
-                          PostgreSQL
-                              ↓
-                         JSON Response
-                              ↓
-                      Frontend Components
-                              ↓
-                      Recharts Visualizations
-```
-
-## Patrones de Diseño
-
-### 1. Dependency Injection (NestJS)
-
-```typescript
-@Injectable()
-export class ClientsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly llm: LlmService
-  ) {}
-}
-```
-
-**Ventajas:**
-- Testeable
-- Desacoplado
-- Fácil de mantener
-
-### 2. Repository Pattern (Prisma)
-
-```typescript
-// Prisma actúa como repository
-await this.prisma.client.findMany({
-  where: { processed: true },
-  orderBy: { meetingDate: 'desc' }
-});
-```
-
-### 3. DTO Pattern (Validación)
-
-```typescript
-export class CreateClientDto {
-  @IsString()
-  name: string;
-
-  @IsEmail()
-  email: string;
-  
-  // ... más campos
-}
-```
-
-### 4. Service Layer Pattern
-
-Separación entre Controllers (HTTP) y Services (lógica):
-
-```typescript
-// Controller: Maneja HTTP
-@Controller('clients')
-export class ClientsController {
-  constructor(private readonly clientsService: ClientsService) {}
-}
-
-// Service: Lógica de negocio
-@Injectable()
-export class ClientsService {
-  async findAll(filters) { /* ... */ }
-}
-```
-
-## Decisiones Arquitectónicas
-
-### 1. Monorepo vs Multirepo
-
-**Decisión:** Monorepo (backend + frontend en un repositorio)
-
-**Razones:**
-- Desarrollo más rápido
-- Tipos compartidos entre frontend y backend
-- Despliegue sincronizado
-- Menor overhead de gestión
-
-### 2. REST vs GraphQL
-
-**Decisión:** REST API
-
-**Razones:**
-- Simplicidad para el scope del proyecto
-- Cacheo más directo
-- Endpoints claros y específicos
-- Menor curva de aprendizaje
-
-### 3. ORM: Prisma vs TypeORM
-
-**Decisión:** Prisma
-
-**Razones:**
-- Type-safety superior
-- Mejor DX (Developer Experience)
-- Migraciones automáticas
-- Cliente generado optimizado
-- Prisma Studio para debugging
-
-### 4. UI Library: shadcn/ui
-
-**Decisión:** shadcn/ui sobre Material-UI o Ant Design
-
-**Razones:**
-- No es una librería, es código que posees
-- Totalmente customizable
-- Basado en Radix UI (accesibilidad)
-- Integración perfecta con TailwindCSS
-- Modern aesthetics
-
-### 5. LLM: Claude vs GPT
-
-**Decisión:** Anthropic Claude
-
-**Razones:**
-- Free tier generoso
-- Excelente comprensión de contexto
-- Respuestas estructuradas (JSON)
-- Bajo rate de alucinaciones
-- API simple y bien documentada
-
-## Escalabilidad
-
-### Estrategias Implementadas
-
-1. **Paginación**: Todas las listas tienen paginación
-2. **Índices de DB**: Campos frecuentemente consultados indexados
-3. **Rate Limiting**: Delay entre llamadas a Claude AI
-4. **Batch Processing**: Procesamiento en lotes de clientes
-
-### Mejoras Futuras
-
-1. **Caching**: Redis para cachear resultados de analytics
-2. **Queue System**: BullMQ para procesamiento asíncrono
-3. **CDN**: Para assets estáticos del frontend
-4. **Load Balancer**: Para múltiples instancias del backend
-5. **Microservicios**: Separar LLM processing en servicio independiente
-
-## Seguridad
-
-### Implementado
-
-1. **Environment Variables**: Secrets en .env
-2. **CORS**: Configurado para frontend específico
-3. **Validation**: DTOs con class-validator
-4. **Type Safety**: TypeScript en todo el stack
-
-### Recomendaciones para Producción
-
-1. **Authentication**: JWT o OAuth2
-2. **Authorization**: Roles y permisos
-3. **Rate Limiting**: Throttling de requests
-4. **Encryption**: HTTPS obligatorio
-5. **Secrets Management**: AWS Secrets Manager o Vault
-6. **SQL Injection Protection**: Prisma lo previene automáticamente
-
-## Testing Strategy
-
-### Niveles de Testing
-
-1. **Unit Tests**: Servicios individuales
-2. **Integration Tests**: Endpoints de API
-3. **E2E Tests**: Flujos completos de usuario
-
-### Herramientas Recomendadas
-
-- **Backend**: Jest (incluido en NestJS)
-- **Frontend**: Jest + React Testing Library
-- **E2E**: Playwright o Cypress
-
-## Monitoreo y Observabilidad
-
-### Recomendaciones
-
-1. **Logging**: Winston o Pino
-2. **APM**: New Relic o DataDog
-3. **Error Tracking**: Sentry
-4. **Metrics**: Prometheus + Grafana
-5. **Tracing**: OpenTelemetry
-
-## Deployment
-
-### Opciones Recomendadas
-
-**Frontend:**
-- Vercel (recomendado para Next.js)
-- Netlify
-- AWS Amplify
-
-**Backend:**
-- Railway (simple y rápido)
-- Render
-- AWS ECS/EKS
-- DigitalOcean App Platform
-
-**Base de Datos:**
-- Railway PostgreSQL
-- Supabase
-- AWS RDS
-- DigitalOcean Managed DB
-
----
-
-Esta arquitectura balancea **simplicidad**, **escalabilidad** y **mantenibilidad**, permitiendo iteraciones rápidas mientras mantiene la calidad del código.
-
+This architecture keeps the backend modular yet monolithic, leverages PostgreSQL for heavy lifting, and leaves room to evolve toward background queues or microservices if throughput demands it.
